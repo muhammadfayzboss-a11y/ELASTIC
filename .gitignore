@@ -1,0 +1,6 @@
+data/
+backups/
+.env
+*.log
+node_modules/
+coverage/

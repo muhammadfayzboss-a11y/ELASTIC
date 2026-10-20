@@ -1,0 +1,27 @@
+# Paid service + persistent disk: review Render charges before creating.
+services:
+  - type: web
+    name: elastic
+    runtime: node
+    plan: 0.5c-512mb
+    buildCommand: npm run check
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: elastic-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_PATH
+        value: /var/data/micro.sqlite
+      - key: BACKUP_PATH
+        value: /var/data/backups
+# Until PUBLIC_URL is set, server.mjs uses Render's RENDER_EXTERNAL_URL.
+# After verifying your .uz domain, add PUBLIC_URL=https://your-domain.uz
+# in the service Environment settings and redeploy.
