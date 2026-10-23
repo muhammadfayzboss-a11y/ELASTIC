@@ -15,6 +15,6 @@ export function locationError(fix, place, now) {
   const age = Date.parse(now) - fix.timestamp;
   if (age > 30000 || age < -5000) return "GPS_STALE";
   if (fix.accuracy > 50) return "GPS_INACCURATE";
-  if (distanceMeters(fix, place) + fix.accuracy > 100) return "GPS_OUTSIDE";
+  if (distanceMeters(fix, place) > 100) return "GPS_OUTSIDE";
   return null;
 }

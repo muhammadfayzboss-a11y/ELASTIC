@@ -2,7 +2,7 @@
 
 - O‘quvchi uch savdo joyini xaritada belgilaydi; ustoz nuqtani tekshirib tasdiqlaydi.
 - GPS yoqilganda, sahifa ochiq va faol bo‘lsa yaqinlashish kuzatiladi.
-- Yangi o‘lchov (30 soniyagacha), aniqlik 50 m yoki yaxshi va masofa + aniqlik <= 100 m talab qilinadi. Noaniq chegarada do‘konga yaqinlashish so‘raladi.
+- Yangi o‘lchov (30 soniyagacha), aniqlik 50 m yoki yaxshi va masofa <= 100 m talab qilinadi. Noaniq chegarada do‘konga yaqinlashish so‘raladi.
 - Har bir savdo joyi alohida saqlanadi. Uchalasidan yozuv kelgach topshirildi deb hisoblanadi.
 - Narx yuborishda lokatsiya qayta olinadi; server radius va topshirish muddatini qayta tekshiradi.
 - HTTPS va foydalanuvchi ruxsati kerak. HTTP manzilda GPS ishlamaydi. Sayt yopiq yoki fon rejimida kuzatish bajarilmaydi.

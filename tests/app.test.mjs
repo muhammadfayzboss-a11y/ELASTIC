@@ -402,3 +402,11 @@ test("per-store collection retains other prices, counts complete sets and keeps 
   assert.equal((await alice.request(`/groups/${id}/submissions`, "POST", {...price(a.id),storeKey:"korzinka"})).error,"GPS_OUTSIDE");
   assert.equal((await alice.ok(`/groups/${id}/history`)).records[0].revisions.length,4);
 });
+
+
+test("GPS radius is exactly 100 metres, independently of the reported accuracy", async () => {
+ const {locationError}=await import("../lib/location.mjs"); const now="2026-10-23T00:00:00Z", p={latitude:0,longitude:0};
+ const fix=metres=>({latitude:metres/6371008.8*180/Math.PI,longitude:0,accuracy:30,timestamp:Date.parse(now)});
+ assert.equal(locationError(fix(99.99),p,now),null);
+ assert.equal(locationError(fix(100.01),p,now),"GPS_OUTSIDE");
+});
