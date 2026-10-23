@@ -434,14 +434,19 @@ document.addEventListener("click", async event => {
   const action = el.dataset.action, id = Number(el.dataset.id), groupId = state.group?.group.id;
   try {
     switch (action) {
-      case "gps-start": startGps(); break;
+      case "gps-start": stopGps(); startGps(); break;
       case "store-location": locationDialog(el.dataset.store); break;
       case "store-prices": priceDialog(el.dataset.store); break;
       case "review-location": reviewLocationDialog(id); break;
       case "map-current": {
-        try { const point = await currentFix(); activeMap?.set(point); const f = dialog.querySelector('form[data-form="location"]');
+        const originalLabel = el.textContent, mapAtStart = activeMap;
+        el.disabled = true; el.textContent = t("gpsSearching");
+        try { const point = await currentFix({ onProgress: fix => { if (el.isConnected) el.textContent = t("gpsAccuracy", {n:Math.round(fix.accuracy)}); } });
+          if (activeMap !== mapAtStart || !el.isConnected) break;
+          activeMap?.set(point); const f = dialog.querySelector('form[data-form="location"]');
           if (f) { f.elements.latitude.value = point.latitude.toFixed(6); f.elements.longitude.value = point.longitude.toFixed(6); }
-        } catch (error) { toast(t(error.message), true); } break;
+        } catch (error) { toast(t(error.message), true); }
+        finally { el.disabled = false; el.textContent = originalLabel; } break;
       }
       case "approve-change": case "reject-change": case "cancel-change":
       case "approve-location": case "reject-location": {

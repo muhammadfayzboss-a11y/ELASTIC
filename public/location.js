@@ -1,11 +1,26 @@
 export { storeKeys, distanceMeters, locationError } from "./geo.js";
-export function currentFix() {
+// Wait for a precise fresh fix instead of accepting the first coarse network position.
+export function currentFix({ onProgress = () => {}, timeout = 20000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!window.isSecureContext) return reject(new Error("GPS_HTTPS"));
     if (!navigator.geolocation) return reject(new Error("GPS_REQUIRED"));
-    navigator.geolocation.getCurrentPosition(position => resolve(toFix(position)),
-      error => reject(new Error(error.code === 1 ? "GPS_DENIED" : "GPS_REQUIRED")),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    let watch = null, best = null, settled = false, settleTimer = null;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true; clearTimeout(deadline); clearTimeout(settleTimer);
+      if (watch !== null) navigator.geolocation.clearWatch(watch);
+      error ? reject(new Error(error)) : resolve(best);
+    };
+    const deadline = setTimeout(() => finish(best && best.accuracy <= 50 ? null : best ? "GPS_INACCURATE" : "GPS_REQUIRED"), timeout);
+    watch = navigator.geolocation.watchPosition(position => {
+      if (settled) return;
+      const fix = toFix(position), age = Date.now() - fix.timestamp;
+      if (!Number.isFinite(fix.accuracy) || fix.accuracy <= 0 || age > 30000 || age < -5000) return;
+      if (!best || fix.accuracy < best.accuracy) { best = fix; onProgress(fix); }
+      if (best.accuracy <= 20) finish(null);
+      else if (best.accuracy <= 50 && !settleTimer) settleTimer = setTimeout(() => finish(null), Math.min(4000, timeout));
+    }, error => { if (error.code === 1) finish("GPS_DENIED"); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout });
   });
 }
 export function toFix(position) {
@@ -19,7 +34,7 @@ export function mountMap(container, initial, onPick, label, readOnly = false) {
   container.setAttribute("aria-label", label);
   const start = initial ? [initial.latitude, initial.longitude] : [41.3111,69.2797];
   const map = L.map(container, {center:start,zoom:initial?17:12,inertia:true,zoomAnimation:true,
-    scrollWheelZoom:true,touchZoom:true,keyboard:true});
+    scrollWheelZoom:true,touchZoom:true,keyboard:true,preferCanvas:true,zoomSnap:0.5,zoomDelta:0.5,wheelDebounceTime:30});
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19,
     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     referrerPolicy:"origin",updateWhenIdle:true,keepBuffer:2}).addTo(map);
@@ -35,7 +50,7 @@ export function mountMap(container, initial, onPick, label, readOnly = false) {
   }
   if(initial) select(initial);
   if(!readOnly) map.on("click",event=>select({latitude:event.latlng.lat,longitude:event.latlng.lng},true));
-  const observer=new ResizeObserver(()=>map.invalidateSize({pan:false}));observer.observe(container);
+  let resizeFrame; const observer=new ResizeObserver(()=>{cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>map.invalidateSize({pan:false,debounceMoveend:true}));});observer.observe(container);
   return {set(point){select(point);map.setView([point.latitude,point.longitude],17,{animate:true});},
-    destroy(){observer.disconnect();map.remove();}};
+    destroy(){cancelAnimationFrame(resizeFrame);observer.disconnect();map.remove();}};
 }

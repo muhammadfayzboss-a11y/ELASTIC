@@ -329,3 +329,5 @@ d("product_change_cancelled", "Almashtirish bekor qilindi", "Product change canc
 d("location_requested", "Savdo joyi yuborildi", "Shop location proposed", "Предложена торговая точка");
 d("location_approved", "Savdo joyi tasdiqlandi", "Shop location approved", "Торговая точка одобрена");
 d("location_rejected", "Savdo joyi rad etildi", "Shop location rejected", "Торговая точка отклонена");
+
+d("gpsAccuracy", "GPS aniqlanmoqda · ±{n} m", "Locating · ±{n} m", "Уточняем GPS · ±{n} м");
