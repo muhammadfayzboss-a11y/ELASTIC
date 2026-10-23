@@ -29,7 +29,7 @@ test("existing v1 SQLite data migrates without loss; an online backup includes c
     `);
     await backup(db, copy);
     db.close(); db = openDatabase(source);
-    assert.equal(db.prepare("PRAGMA user_version").get().user_version, 2);
+    assert.equal(db.prepare("PRAGMA user_version").get().user_version, 3);
     assert.ok(db.prepare("PRAGMA table_info(assignments)").all().some(column => column.name === "end_reason"));
     assert.equal(db.prepare("SELECT end_reason,end_note FROM assignments WHERE id=1").get().end_reason, null);
     assert.equal(db.prepare("SELECT end_note FROM assignments WHERE id=1").get().end_note, "");

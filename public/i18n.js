@@ -287,3 +287,45 @@ const errors = {
   SERVER_ERROR: ["Serverda xatolik. Qayta urinib ko‘ring.", "Server error. Please try again.", "Ошибка сервера. Повторите попытку."]
 };
 for (const [key, values] of Object.entries(errors)) d(key, ...values);
+
+// GPS and teacher review.
+d("GPS_HTTPS", "GPS uchun saytni HTTPS orqali oching.", "Open the HTTPS website to use GPS.", "Для GPS откройте сайт по HTTPS.");
+d("GPS_REQUIRED", "Lokatsiyani aniqlang. GPS va ruxsatni tekshiring.", "Check GPS and location permission.", "Проверьте GPS и разрешение геолокации.");
+d("GPS_DENIED", "Lokatsiya ruxsati berilmadi. Brauzer sozlamalaridan yoqing.", "Location permission denied. Enable it in browser settings.", "Доступ к геолокации запрещён. Разрешите его в настройках браузера.");
+d("GPS_STALE", "Lokatsiya eskirgan. Qayta aniqlang.", "Location expired. Check again.", "Геопозиция устарела. Определите её повторно.");
+d("GPS_INACCURATE", "GPS aniqligi yetarli emas (50 m dan yuqori). Ochiqroq joyda qayta urinib ko‘ring.", "GPS accuracy exceeds 50 m. Try again in an open area.", "Погрешность GPS превышает 50 м. Повторите на открытом месте.");
+d("GPS_OUTSIDE", "100 metrlik hudud tasdiqlanmadi. Do‘konga yaqinlashing.", "Cannot confirm the 100 m zone. Move closer to the shop.", "Нахождение в радиусе 100 м не подтверждено. Подойдите ближе.");
+d("LOCATION_REQUIRED", "Avval savdo joyini belgilang va ustoz tasdig‘ini kuting.", "Choose a shop location and wait for teacher approval.", "Укажите торговую точку и дождитесь одобрения преподавателя.");
+d("REQUEST_RESOLVED", "Bu so‘rov ko‘rib chiqilgan. Sahifani yangilang.", "This request was already reviewed. Refresh the page.", "Запрос уже рассмотрен. Обновите страницу.");
+d("checkGps", "GPS tekshirish", "Check GPS", "Проверить GPS");
+d("gpsReady", "Narx kiritish ochiq", "Price entry unlocked", "Ввод цены доступен");
+d("gpsSearching", "GPS aniqlanmoqda…", "Locating…", "Определяем геопозицию…");
+d("gpsHint", "Sayt ochiq turganda GPS yaqinlashishni tekshiradi. Har bir savdo joyi uchun 100 m hudud, GPS aniqligi va ustoz belgilagan davr tekshiriladi. GPSni yoqishdan oldin ruxsat so‘raladi.", "With this page open, GPS checks each shop’s 100 m zone, accuracy and the teacher’s entry period. Location permission is requested when you enable GPS.", "На открытой странице GPS проверяет радиус 100 м каждой точки, точность и срок сдачи. При включении GPS запрашивается разрешение.");
+d("storeLocations", "Savdo joylari va GPS", "Shops and GPS", "Торговые точки и GPS");
+d("chooseLocation", "Joylashuvni tanlash", "Choose location", "Выбрать местоположение");
+d("viewMap", "Xaritada ko‘rish", "View map", "На карте");
+d("mapHint", "Xaritani suring va do‘konning aniq joyini bosing. +/− bilan masshtabni o‘zgartiring. Koordinatalarni ham kiritish mumkin.", "Drag the map and tap the shop. Zoom with +/−. You can also enter coordinates.", "Переместите карту и нажмите на магазин. Масштаб +/−. Можно ввести координаты.");
+d("latitude", "Kenglik", "Latitude", "Широта");
+d("longitude", "Uzunlik", "Longitude", "Долгота");
+d("myLocation", "Hozirgi joyimni olish", "Use current location", "Моя геопозиция");
+d("locationApprovalHint", "Nuqta ustoz tasdiqlagandan keyin ishlaydi. Xaritani ko‘rsatish uchun OpenStreetMap ishlatiladi.", "The point becomes active after teacher approval. Map tiles are provided by OpenStreetMap.", "Точка активна после одобрения преподавателя. Карта предоставлена OpenStreetMap.");
+d("locationReview", "Savdo joyini tekshirish", "Review shop location", "Проверка торговой точки");
+d("requestsTitle", "So‘rovlar", "Requests", "Запросы");
+d("approve", "Tasdiqlash", "Approve", "Одобрить");
+d("reject", "Rad etish", "Reject", "Отклонить");
+d("sendRequest", "So‘rov yuborish", "Send request", "Отправить запрос");
+d("requestSent", "So‘rov ustozga yuborildi.", "Request sent to your teacher.", "Запрос отправлен преподавателю.");
+d("request_pending", "Ustoz tasdig‘i kutilmoqda", "Awaiting teacher approval", "Ожидает одобрения");
+d("request_approved", "Tasdiqlangan", "Approved", "Одобрено");
+d("request_rejected", "Rad etilgan", "Rejected", "Отклонено");
+d("request_cancelled", "Bekor qilingan", "Cancelled", "Отменено");
+d("approvalChangeHint", "Ustoz tasdiqlaguncha hozirgi mahsulotingiz saqlanadi. Tanlangan yangi mahsulot tasdiqlash paytida bo‘sh bo‘lishi kerak. Oldingi tarix saqlanadi.", "Your current product stays until approval. The new product must still be available when approved. All history is retained.", "До одобрения остаётся текущий продукт. Новый продукт должен быть свободен при одобрении. История сохраняется.");
+d("reviewConfirm", "So‘rov bo‘yicha tanlangan amalni tasdiqlang.", "Confirm your decision for this request.", "Подтвердите решение по этому запросу.");
+d("notCollected", "Hali kiritilmagan", "Not collected yet", "Ещё не внесено");
+d("product_change_requested", "Mahsulot almashtirish so‘raldi", "Product change requested", "Запрошена замена продукта");
+d("product_change_approved", "Almashtirish tasdiqlandi", "Product change approved", "Замена одобрена");
+d("product_change_rejected", "Almashtirish rad etildi", "Product change rejected", "Замена отклонена");
+d("product_change_cancelled", "Almashtirish bekor qilindi", "Product change cancelled", "Замена отменена");
+d("location_requested", "Savdo joyi yuborildi", "Shop location proposed", "Предложена торговая точка");
+d("location_approved", "Savdo joyi tasdiqlandi", "Shop location approved", "Торговая точка одобрена");
+d("location_rejected", "Savdo joyi rad etildi", "Shop location rejected", "Торговая точка отклонена");

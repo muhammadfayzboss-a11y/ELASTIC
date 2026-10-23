@@ -7,7 +7,7 @@ import { windowFor } from "../lib/schedule.mjs";
 import { catalog } from "../lib/catalog.mjs";
 
 const PASSWORD = "OnlyForAutomatedTests!27";
-async function fixture(t) {
+async function fixture(t, { locations = true } = {}) {
   let clock = "2026-10-20T07:00:00.000Z";
   const app = createApp({ now: () => clock, setupToken: "automated-test-setup-token" });
   app.server.listen(0, "127.0.0.1"); await once(app.server, "listening");
@@ -27,7 +27,7 @@ async function fixture(t) {
       const json = await response.json();
       if (json.csrf) this.csrf = json.csrf;
       if (json.user) this.user = json.user;
-      return { status: response.status, ...json };
+      return { ...json, requestStatus: json.status, status: response.status };
     }
     async ok(path, method = "GET", data) {
       const result = await this.request(path, method, data);
@@ -47,10 +47,14 @@ async function fixture(t) {
   async function student(groupId, username, options = {}) {
     const link = await invite(groupId), client = new Client();
     await client.ok("/register", "POST", { token: link.token, username, name: username, password: PASSWORD, ...options });
+    if (locations) for (const storeKey of ["korzinka", "secondary", "local"]) {
+      const place = await client.ok(`/groups/${groupId}/locations`, "POST", { storeKey, name: "Test shop", brand: "Havas", latitude: 41.3111, longitude: 69.2797 });
+      await admin.ok(`/groups/${groupId}/locations/${place.id}/approve`, "POST", {});
+    }
     return client;
   }
   const price = assignmentId => ({ assignmentId, observedOn: "2026-10-20", korzinka: 15000.5,
-    secondaryStore: "Havas", secondary: 14500, localStore: "Chorsu shop", local: 13000 });
+    secondaryStore: "Havas", secondary: 14500, localStore: "Chorsu shop", local: 13000, location: { latitude: 41.3111, longitude: 69.2797, accuracy: 5, timestamp: Date.parse(clock) } });
   return { app, origin, Client, admin, group, invite, student, price, setClock: value => { clock = value; } };
 }
 
@@ -134,7 +138,10 @@ test("changing products releases the old product and preserves all revisions and
   await admin.ok(`/groups/${id}/schedule`, "POST", { mode: "manual", open: true });
   await alice.ok(`/groups/${id}/submissions`, "POST", price(first.id));
   await alice.ok(`/groups/${id}/submissions`, "POST", { ...price(first.id), korzinka: 17000, secondary: null });
-  const second = await alice.ok(`/groups/${id}/assign`, "POST", { productId: products[1].id, reason: "discontinued", reasonNote: "Store stopped selling it." });
+  const requested = await alice.ok(`/groups/${id}/assign`, "POST", { productId: products[1].id, reason: "discontinued", reasonNote: "Store stopped selling it." });
+  assert.equal(requested.pending, true);
+  assert.equal((await alice.ok(`/groups/${id}`)).assignment.id, first.id);
+  const second = await admin.ok(`/groups/${id}/changes/${requested.requestId}/approve`, "POST", {});
   await alice.ok(`/groups/${id}/submissions`, "POST", price(second.id));
   assert.equal((await alice.request(`/groups/${id}/submissions`, "POST", price(first.id))).status, 409);
   await bob.ok(`/groups/${id}/assign`, "POST", { productId: products[0].id });
@@ -177,7 +184,8 @@ test("switch reasons are required server-side, recorded in history and audit, an
     assert.equal((await alice.request(`/groups/${id}/assign`, "POST", { productId: products[1].id, reason: "other", reasonNote: note })).error, "CHANGE_NOTE_REQUIRED");
   }
   assert.equal((await alice.ok(`/groups/${id}`)).assignment.product_id, products[0].id);
-  await alice.ok(`/groups/${id}/assign`, "POST", { productId: products[1].id, reason: "other", reasonNote: "  Qadoq hajmi o‘zgargan.  " });
+  const change = await alice.ok(`/groups/${id}/assign`, "POST", { productId: products[1].id, reason: "other", reasonNote: "  Qadoq hajmi o‘zgargan.  " });
+  await admin.ok(`/groups/${id}/changes/${change.requestId}/approve`, "POST", {});
   const own = (await alice.ok(`/groups/${id}/assignments`)).assignments;
   const ended = own.find(a => a.ended_at);
   assert.equal(ended.end_reason, "other");
@@ -187,7 +195,8 @@ test("switch reasons are required server-side, recorded in history and audit, an
   assert.equal(teacherHistory.find(a => a.id === ended.id).end_reason, "other");
   const event = (await admin.ok(`/groups/${id}/audit`)).events.find(e => e.action === "product_changed");
   assert.deepEqual(JSON.parse(event.details), { from: products[0].id, to: products[1].id, reason: "other", note: "Qadoq hajmi o‘zgargan." });
-  await alice.ok(`/groups/${id}/assign`, "POST", { productId: products[2].id, reason: "seasonal" });
+  const next = await alice.ok(`/groups/${id}/assign`, "POST", { productId: products[2].id, reason: "seasonal" });
+  await admin.ok(`/groups/${id}/changes/${next.requestId}/approve`, "POST", {});
   assert.equal((await alice.ok(`/groups/${id}/assignments`)).assignments.find(a => a.product_id === products[1].id).end_reason, "seasonal");
 });
 
@@ -319,4 +328,77 @@ test("Render health probe accepts internal Host without exposing app routes", as
   assert.equal(await head.text(), "");
   assert.equal((await fetch(`${origin}/api/session`, { headers })).status, 403);
   assert.equal((await fetch(`${origin}/healthz`, { headers, method: "POST" })).status, 403);
+});
+
+
+test("product changes await review; reject/cancel, collisions and unauthorized approvals preserve the old assignment", async t => {
+  const { admin, group, student } = await fixture(t);
+  const id = await group(), alice = await student(id, "alice"), bob = await student(id, "bob");
+  const products = (await alice.ok(`/groups/${id}`)).products;
+  const old = await alice.ok(`/groups/${id}/assign`, "POST", { productId: products[0].id });
+  const request = () => alice.ok(`/groups/${id}/assign`, "POST", { productId: products[1].id, reason: "seasonal" });
+  let r = await request();
+  assert.equal((await bob.request(`/groups/${id}/changes/${r.requestId}/approve`, "POST", {})).status, 403);
+  assert.equal((await bob.ok(`/groups/${id}`)).changeRequests.length, 0);
+  await admin.ok(`/groups/${id}/changes/${r.requestId}/reject`, "POST", {});
+  assert.equal((await alice.ok(`/groups/${id}`)).assignment.id, old.id);
+  assert.equal((await admin.request(`/groups/${id}/changes/${r.requestId}/approve`, "POST", {})).error, "REQUEST_RESOLVED");
+  r = await request();
+  await alice.ok(`/groups/${id}/changes/${r.requestId}/cancel`, "POST", {});
+  r = await request();
+  await bob.ok(`/groups/${id}/assign`, "POST", { productId: products[1].id });
+  assert.equal((await admin.request(`/groups/${id}/changes/${r.requestId}/approve`, "POST", {})).error, "PRODUCT_TAKEN");
+  assert.equal((await alice.ok(`/groups/${id}`)).assignment.id, old.id);
+  assert.equal((await alice.ok(`/groups/${id}`)).changeRequests[0].status, "pending");
+});
+
+test("GPS is required server-side: pending/unapproved places, stale/inaccurate/outside fixes and cross-group locations are blocked", async t => {
+  const { admin, group, student, price } = await fixture(t, { locations: false });
+  const id = await group(), alice = await student(id, "alice"), bob = await student(id, "bob");
+  const product = (await alice.ok(`/groups/${id}`)).products[0];
+  const a = await alice.ok(`/groups/${id}/assign`, "POST", { productId: product.id });
+  await admin.ok(`/groups/${id}/schedule`, "POST", { mode: "manual", open: true });
+  const payload = { ...price(a.id), storeKey: "korzinka" };
+  assert.equal((await alice.request(`/groups/${id}/submissions`, "POST", payload)).error, "LOCATION_REQUIRED");
+  const place = await alice.ok(`/groups/${id}/locations`, "POST", { storeKey: "korzinka", name: "Korzinka test", latitude: 41.3111, longitude: 69.2797 });
+  assert.equal((await bob.request(`/groups/${id}/locations/${place.id}/approve`, "POST", {})).status, 403);
+  assert.equal((await bob.ok(`/groups/${id}`)).locations.length, 0);
+  assert.equal((await alice.request(`/groups/${id}/submissions`, "POST", payload)).error, "LOCATION_REQUIRED");
+  const otherGroup = await group("Other");
+  assert.equal((await admin.request(`/groups/${otherGroup}/locations/${place.id}/approve`, "POST", {})).status, 404);
+  await admin.ok(`/groups/${id}/locations/${place.id}/approve`, "POST", {});
+  for (const [location, expected] of [[null,"GPS_REQUIRED"], [{...payload.location,latitude:"41"},"GPS_REQUIRED"],
+      [{...payload.location,accuracy:0},"GPS_REQUIRED"], [{...payload.location,accuracy:70},"GPS_INACCURATE"],
+      [{...payload.location,timestamp:payload.location.timestamp-30001},"GPS_STALE"],
+      [{...payload.location,timestamp:payload.location.timestamp+6000},"GPS_STALE"],
+      [{...payload.location,latitude:41.32},"GPS_OUTSIDE"]]) {
+    assert.equal((await alice.request(`/groups/${id}/submissions`, "POST", {...payload,location})).error, expected);
+  }
+  await alice.ok(`/groups/${id}/submissions`, "POST", payload);
+  const detail = (await alice.ok(`/groups/${id}/history`)).records[0].revisions[0];
+  assert.equal(detail.observations.length, 1);
+  assert.deepEqual(detail.collectedStores, ["korzinka"]);
+  assert.equal(detail.observations[0].location_name, "Korzinka test");
+  assert.equal((await admin.ok("/groups")).groups.find(g=>g.id===id).submitted, 0);
+  assert.equal((await alice.request(`/groups/${id}/submissions`, "POST", {...payload,storeKey:undefined})).error, "LOCATION_REQUIRED");
+});
+
+test("per-store collection retains other prices, counts complete sets and keeps previous approved places until replacement approval", async t => {
+  const { admin, group, student, price } = await fixture(t);
+  const id = await group(), alice = await student(id, "alice");
+  const product = (await alice.ok(`/groups/${id}`)).products[0];
+  const a = await alice.ok(`/groups/${id}/assign`, "POST", { productId: product.id });
+  await admin.ok(`/groups/${id}/schedule`, "POST", {mode:"manual",open:true});
+  for (const [key,value] of [["korzinka",12000],["secondary",null],["local",14000]]) {
+    await alice.ok(`/groups/${id}/submissions`, "POST", {...price(a.id),storeKey:key,[key]:value});
+  }
+  let data = await alice.ok(`/groups/${id}`);
+  assert.equal(data.latest.korzinka, 1200000); assert.equal(data.latest.secondary, null); assert.equal(data.latest.local, 1400000);
+  assert.equal(data.collectedStores.length,3);
+  assert.equal((await admin.ok("/groups")).groups.find(g=>g.id===id).submitted,1);
+  const replacement = await alice.ok(`/groups/${id}/locations`, "POST", {storeKey:"korzinka",name:"New branch",latitude:42,longitude:69});
+  await alice.ok(`/groups/${id}/submissions`, "POST", {...price(a.id),storeKey:"korzinka",korzinka:15000});
+  await admin.ok(`/groups/${id}/locations/${replacement.id}/approve`, "POST", {});
+  assert.equal((await alice.request(`/groups/${id}/submissions`, "POST", {...price(a.id),storeKey:"korzinka"})).error,"GPS_OUTSIDE");
+  assert.equal((await alice.ok(`/groups/${id}/history`)).records[0].revisions.length,4);
 });

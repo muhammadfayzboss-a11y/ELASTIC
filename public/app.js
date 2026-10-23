@@ -1,3 +1,4 @@
+import { storeKeys, distanceMeters, locationError, currentFix, toFix, mountMap } from "./location.js";
 import { languages, messages } from "./i18n.js";
 
 const app = document.querySelector("#app"), dialog = document.querySelector("#modal");
@@ -108,7 +109,7 @@ function showDialog(title, content, wide = false) {
   dialog.innerHTML = `<div class="dialog-heading"><h2 id="dialog-title">${title}</h2><button type="button" class="icon-btn" data-action="close-dialog" aria-label="${t("close")}">${icon("close")}</button></div>${content}`;
   if (!dialog.open) dialog.showModal();
 }
-function closeDialog() { if (dialog.open) dialog.close(); state.confirm = null; }
+function closeDialog() { activeMap?.destroy(); activeMap = null; if (dialog.open) dialog.close(); state.confirm = null; }
 function confirmDialog(title, explanation, callback) {
   state.confirm = callback;
   showDialog(title, `<p class="dialog-intro">${explanation}</p><div class="dialog-actions">${button(t("cancel"), "close-dialog", "", "secondary")}${button(t("save"), "confirm", "check")}</div>`);
@@ -145,7 +146,7 @@ function shell(content, title) {
     <main id="main" tabindex="-1">${content}</main><footer class="page-footer"><span>ELASTIC <span>·</span> ${t("tagline")}</span><span class="creator-credit">${t("creator")}</span><span>${t("tzValue")}</span></footer></div></div>`;
 }
 function groupCard(g, i) {
-  return `<a class="group-card" href="#group/${g.id}/products"><div class="row"><div class="group-symbol tone-${i % 4}">${icon("users")}</div>${statusBadge(g)}</div><h3>${e(g.name)}</h3><p class="group-description">${e(g.description || t("groupsHint"))}</p><div class="group-meta"><span>${icon("users")}${g.members} ${t("members").toLowerCase()}</span><span>${icon("box")}${g.products} ${t("products").toLowerCase()}</span></div><div class="group-progress"><div class="row"><span>${t("thisPeriod")}</span><strong>${g.submitted}/${g.members}</strong></div><progress value="${g.submitted}" max="${Math.max(g.members, 1)}" aria-label="${t("groupProgress", { done: g.submitted, total: g.members })}"></progress></div><div class="group-card-footer"><span>${t("availableCount", { count: g.products - g.assigned })}</span>${icon("arrow")}</div></a>`;
+  return `<a class="group-card" href="#group/${g.id}/products"><div class="row"><div class="group-symbol tone-${i % 4}">${icon("users")}</div>${statusBadge(g)}</div><h3>${e(g.name)}</h3><p class="group-description">${e(g.description || t("groupsHint"))}</p><div class="group-meta"><span>${icon("users")}${g.members} ${t("members").toLowerCase()}</span><span>${icon("box")}${g.products} ${t("products").toLowerCase()}</span></div><div class="group-progress"><div class="row"><span>${t("thisPeriod")}</span><strong>${g.submitted}/${g.members}</strong></div><progress value="${g.submitted}" max="${Math.max(g.members, 1)}" aria-label="${t("groupProgress", { done: g.submitted, total: g.members })}"></progress></div><div class="group-card-footer"><span>${t("availableCount", { count: g.products - g.assigned })}${state.user.role === "admin" && g.pendingRequests ? ` · ${t("requestsTitle")}: ${g.pendingRequests}` : ""}</span>${icon("arrow")}</div></a>`;
 }
 function renderOverview() {
   const active = state.groups.filter(g => !g.archived);
@@ -198,8 +199,8 @@ function productList() {
 }
 function groupProducts() {
   const { assignment, group, latest, window } = state.group;
-  const own = !group.isAdmin ? assignment ? `<section class="assignment-card"><div class="assignment-info">${productBadge(assignment)}<div><span class="tiny-label">${t("mine")}</span><h2>${e(nameOf(assignment))}</h2><p>${t("perUnit", { unit: t(assignment.unit) })} · ${date(assignment.started_at)}</p>${latest ? `<small class="success-text">${icon("check")}${t("periodSubmitted")}</small>` : ""}</div></div><div class="assignment-actions">${button(t(latest ? "editPrices" : "enterPrices"), "prices", "plus", "primary", !window.open || group.archived ? "disabled" : "")}${button(t("changeProduct"), "change-product", "", "text", group.archived ? "disabled" : "")}</div></section>` : `<div class="notice choose-notice">${icon("box")}<div><strong>${t("noAssignment")}</strong><p>${t("noAssignmentText")}</p></div></div>` : "";
-  return own + `<section class="panel catalog-panel"><div class="toolbar"><label class="search">${icon("search")}<input id="product-search" value="${e(state.search)}" placeholder="${t("searchProducts")}" aria-label="${t("searchProducts")}"></label>${group.isAdmin ? button(t("addProduct"), "add-product", "plus", "secondary", group.archived ? "disabled" : "") : `<label class="checkbox"><input type="checkbox" id="available-only" ${state.availableOnly ? "checked" : ""}>${t("showAvailable")}</label>`}</div>${categoryTabs()}<div class="product-grid" id="product-list">${productList()}</div></section>`;
+  const own = !group.isAdmin ? assignment ? `<section class="assignment-card"><div class="assignment-info">${productBadge(assignment)}<div><span class="tiny-label">${t("mine")}</span><h2>${e(nameOf(assignment))}</h2><p>${t("perUnit", { unit: t(assignment.unit) })} · ${date(assignment.started_at)}</p>${latest && state.group.collectedStores?.length === 3 ? `<small class="success-text">${icon("check")}${t("periodSubmitted")}</small>` : ""}</div></div><div class="assignment-actions">${button(t(latest ? "editPrices" : "enterPrices"), "prices", "plus", "primary", !window.open || group.archived ? "disabled" : "")}${button(t("changeProduct"), "change-product", "", "text", group.archived ? "disabled" : "")}</div></section>` : `<div class="notice choose-notice">${icon("box")}<div><strong>${t("noAssignment")}</strong><p>${t("noAssignmentText")}</p></div></div>` : "";
+  return own + requestsPanel() + storesPanel() + `<section class="panel catalog-panel"><div class="toolbar"><label class="search">${icon("search")}<input id="product-search" value="${e(state.search)}" placeholder="${t("searchProducts")}" aria-label="${t("searchProducts")}"></label>${group.isAdmin ? button(t("addProduct"), "add-product", "plus", "secondary", group.archived ? "disabled" : "") : `<label class="checkbox"><input type="checkbox" id="available-only" ${state.availableOnly ? "checked" : ""}>${t("showAvailable")}</label>`}</div>${categoryTabs()}<div class="product-grid" id="product-list">${productList()}</div></section>`;
 }
 function membersView() {
   const members = state.members || [];
@@ -293,7 +294,7 @@ async function load() {
       if (route.tab === "invites") state.invites = (await api(`/groups/${route.id}/invites`)).invites;
       if (route.tab === "audit") state.events = (await api(`/groups/${route.id}/audit`)).events;
       if (request !== state.request) return;
-      renderGroup();
+      renderGroup(); updateGps();
     } else ({ overview: renderOverview, groups: renderGroups, catalog: renderCatalog, settings: renderSettings }[route.page] || renderOverview)();
   } catch (error) {
     if (request !== state.request) return;
@@ -315,28 +316,109 @@ function addProductDialog() {
 function customProductDialog() {
   showDialog(t("customProduct"), `<form data-form="custom-product">${["uz", "en", "ru"].map(l => field(`${t("productName")} · ${languages[l]}`, `<input name="name_${l}" ${l === "uz" ? 'required minlength="2"' : ""} maxlength="100">`)).join("")}<div class="form-grid">${field(t("category"), `<select name="category">${["fruit", "vegetable", "grain", "other"].map(c => `<option value="${c}">${t(c)}</option>`).join("")}</select>`)}${field(t("unit"), `<select name="unit">${["kg", "l", "piece", "pack"].map(u => `<option value="${u}">${t(u)}</option>`).join("")}</select>`)}</div>${formFooter()}</form>`);
 }
-function priceDialog() {
-  const { assignment: p, latest: r, today } = state.group;
-  if (!p) return toast(t("selectFirst"), true);
-  if (!state.group.window.open) return toast(t("WINDOW_CLOSED"), true);
-  const priceField = (key, title, subtitle, storeInput = "") => {
-    const unavailable = r && r[key] === null;
-    return `<div class="store-price"><div class="store-head"><span class="store-symbol ${key}">${key === "korzinka" ? "K" : key === "secondary" ? "H" : icon("box")}</span><div><span class="tiny-label">${subtitle}</span><h3>${title}</h3></div></div>${storeInput}${field(`${t("price")} · ${t("currency")}`, `<input type="number" inputmode="decimal" name="${key}" min="0.01" max="100000000" step="0.01" placeholder="0" ${unavailable ? "disabled" : "required"} value="${r && r[key] !== null ? r[key] / 100 : ""}">`)}<label class="checkbox"><input type="checkbox" name="${key}Unavailable" data-price-unavailable="${key}" ${unavailable ? "checked" : ""}>${t("unavailable")}</label></div>`;
-  };
-  showDialog(`${t(r ? "editPrices" : "enterPrices")} · ${e(nameOf(p))}`, `<form data-form="prices"><p class="form-intro">${t("priceFormHint", { unit: t(p.unit) })}</p>${field(t("observedDate"), `<input type="date" name="observedOn" value="${r?.observed_on || today}" max="${today}" min="${localInput(p.started_at).slice(0, 10)}" required>`)}<div class="price-form-grid">${priceField("korzinka", "Korzinka", t("primaryStore"))}${priceField("secondary", "Havas / Mall", t("secondaryStore"), field(t("secondaryStore"), `<select name="secondaryStore"><option ${r?.secondary_store !== "Mall" ? "selected" : ""}>Havas</option><option ${r?.secondary_store === "Mall" ? "selected" : ""}>Mall</option></select>`))}${priceField("local", t("localShop"), t("localShop"), field(t("shopName"), `<input name="localStore" value="${e(r?.local_store || "")}" required minlength="2" maxlength="100" placeholder="${t("shopName")}">`))}</div><p class="inline-note">${icon("history")}${t("revisionHint")}</p>${formFooter()}</form>`, true);
+const approvedPlaces = () => (state.group?.locations || []).filter(p => p.user_id === state.user?.id && p.status === "approved");
+const storeLabel = key => key === "korzinka" ? "Korzinka" : key === "secondary" ? "Havas / Mall" : t("localShop");
+const gps = { watch: null, fix: null, error: "GPS_REQUIRED", inside: new Set(), group: null };
+let activeMap = null;
+function stopGps() {
+  if (gps.watch !== null) navigator.geolocation?.clearWatch(gps.watch);
+  gps.watch = null; gps.fix = null; gps.inside.clear(); gps.group = null;
 }
+function updateGps() {
+  const time = new Date().toISOString(), places = approvedPlaces();
+  for (const el of document.querySelectorAll("[data-gps-store]")) {
+    const place = places.find(p => p.store_key === el.dataset.gpsStore);
+    const error = !place ? "LOCATION_REQUIRED" : locationError(gps.fix, place, time);
+    el.textContent = !place ? t("LOCATION_REQUIRED") : !gps.fix ? t(gps.error) :
+      `${Math.round(distanceMeters(gps.fix, place))} m · ±${Math.round(gps.fix.accuracy)} m · ${t(error || "gpsReady")}`;
+  }
+  const priceForm = dialog.querySelector('form[data-form="prices"]');
+  if (priceForm) {
+    const place = places.find(p => p.store_key === priceForm.dataset.store);
+    const error = !place ? "LOCATION_REQUIRED" : locationError(gps.fix, place, time);
+    const submit = priceForm.querySelector('button[type="submit"]');
+    if (submit && !state.busy) submit.disabled = Boolean(error) || !state.group.window.open;
+  }
+}
+function startGps() {
+  if (!window.isSecureContext) { gps.error = "GPS_HTTPS"; updateGps(); return toast(t(gps.error), true); }
+  if (!navigator.geolocation) return toast(t("GPS_REQUIRED"), true);
+  if (gps.watch !== null) return updateGps();
+  gps.group = state.group.group.id; gps.error = "gpsSearching";
+  gps.watch = navigator.geolocation.watchPosition(position => {
+    if (document.hidden || routeInfo().id !== gps.group || !state.user) return stopGps();
+    gps.fix = toFix(position); gps.error = ""; updateGps();
+    const inside = approvedPlaces().filter(p => !locationError(gps.fix, p, new Date().toISOString()));
+    const entered = inside.find(p => !gps.inside.has(p.id));
+    gps.inside = new Set(inside.map(p => p.id));
+    if (entered && !dialog.open && !state.busy && state.group.window.open && !state.group.group.archived && routeInfo().tab === "products" && state.group.assignment) priceDialog(entered.store_key);
+  }, error => {
+    gps.fix = null; gps.error = error.code === 1 ? "GPS_DENIED" : "GPS_REQUIRED"; updateGps();
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  updateGps();
+}
+function requestsPanel() {
+  const admin = state.group.group.isAdmin;
+  const changes = (state.group.changeRequests || []).filter(r => admin ? r.status === "pending" : true).slice(0, 12);
+  const places = admin ? (state.group.locations || []).filter(p => p.status === "pending") : [];
+  if (!changes.length && !places.length) return "";
+  return `<section class="panel request-panel"><div class="panel-heading"><h2>${t("requestsTitle")}</h2><span class="badge green">${changes.filter(r => r.status === "pending").length + places.length}</span></div><div class="request-list">${changes.map(r => `<article class="request-row"><div><strong>${admin ? e(r.member_name) + " · " : ""}${e(nameOf(r))}</strong><p>${t("changeReason")}: ${t(`reason_${r.reason}`)}${r.note ? ` · ${e(r.note)}` : ""}</p><small>${date(r.requested_at, true)} · ${t(`request_${r.status}`)}</small></div><div class="request-actions">${r.status === "pending" ? admin ? `${button(t("approve"), "approve-change", "check", "primary small", `data-id="${r.id}"`)}${button(t("reject"), "reject-change", "", "secondary small", `data-id="${r.id}"`)}` : button(t("cancel"), "cancel-change", "", "secondary small", `data-id="${r.id}"`) : ""}</div></article>`).join("")}${places.map(p => `<article class="request-row"><div><strong>${e(p.member_name)} · ${e(p.name)}</strong><p>${storeLabel(p.store_key)} · ${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}</p></div><div class="request-actions">${button(t("viewMap"), "review-location", "", "secondary small", `data-id="${p.id}"`)}</div></article>`).join("")}</div></section>`;
+}
+function storesPanel() {
+  if (state.group.group.isAdmin) return "";
+  const locations = state.group.locations || [], approved = approvedPlaces();
+  return `<section class="panel location-panel"><div class="panel-heading"><h2>${t("storeLocations")}</h2>${button(t("checkGps"), "gps-start", "", "secondary small", state.group.group.archived ? "disabled" : "")}</div><p class="gps-help">${t("gpsHint")}</p><div class="store-location-grid">${storeKeys.map(key => {
+    const place = approved.find(p => p.store_key === key), latest = locations.find(p => p.store_key === key);
+    const collected = state.group.collectedStores?.includes(key);
+    return `<article class="store-location"><strong>${storeLabel(key)} ${collected ? "✓" : ""}</strong><p>${e(place?.name || t("LOCATION_REQUIRED"))}</p>${latest && latest.id !== place?.id ? `<small>${t(`request_${latest.status}`)} · ${e(latest.name)}</small>` : ""}<p class="gps-status" data-gps-store="${key}">${t("GPS_REQUIRED")}</p><div class="request-actions">${button(t("chooseLocation"), "store-location", "", "secondary small", `data-store="${key}" ${state.group.group.archived ? "disabled" : ""}`)}${place ? button(t("enterPrices"), "store-prices", "", "primary small", `data-store="${key}" ${!state.group.window.open || state.group.group.archived ? "disabled" : ""}`) : ""}</div></article>`;
+  }).join("")}</div></section>`;
+}
+function locationDialog(key) {
+  const place = (state.group.locations || []).find(p => p.store_key === key);
+  showDialog(`${t("chooseLocation")} · ${storeLabel(key)}`, `<form data-form="location" data-store="${key}"><p class="form-intro">${t("mapHint")}</p>${field(t("shopName"), `<input name="name" required minlength="2" maxlength="100" value="${e(place?.name || "")}">`)}${key === "secondary" ? field(t("secondaryStore"), `<select name="brand"><option>Havas</option><option ${place?.brand === "Mall" ? "selected" : ""}>Mall</option></select>`) : ""}<div class="location-picker"></div><div class="form-grid">${field(t("latitude"), `<input name="latitude" type="number" step="any" min="-90" max="90" required value="${place?.latitude ?? ""}">`)}${field(t("longitude"), `<input name="longitude" type="number" step="any" min="-180" max="180" required value="${place?.longitude ?? ""}">`)}</div>${button(t("myLocation"), "map-current", "", "secondary small")}<p class="inline-note">${t("locationApprovalHint")}</p>${formFooter(t("sendRequest"))}</form>`, true);
+  const form = dialog.querySelector("form");
+  activeMap?.destroy(); activeMap = mountMap(dialog.querySelector(".location-picker"), place, point => {
+    form.elements.latitude.value = point.latitude.toFixed(6); form.elements.longitude.value = point.longitude.toFixed(6);
+  }, t("mapHint"));
+  for (const input of [form.elements.latitude, form.elements.longitude]) input.addEventListener("change", () => {
+    const latitude = Number(form.elements.latitude.value), longitude = Number(form.elements.longitude.value);
+    if (Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) activeMap?.set({ latitude, longitude });
+  });
+}
+function reviewLocationDialog(id) {
+  const place = state.group.locations.find(p => p.id === id);
+  if (!place) return;
+  showDialog(t("locationReview"), `<p class="form-intro">${e(place.member_name)} · ${e(place.name)} · ${storeLabel(place.store_key)}</p><div class="location-picker"></div><p>${place.latitude.toFixed(6)}, ${place.longitude.toFixed(6)}</p><div class="dialog-actions">${button(t("reject"), "reject-location", "", "secondary", `data-id="${id}"`)}${button(t("approve"), "approve-location", "check", "primary", `data-id="${id}"`)}</div>`, true);
+  activeMap?.destroy(); activeMap = mountMap(dialog.querySelector(".location-picker"), place, () => {}, t("viewMap"), true);
+}
+function priceDialog(key) {
+  if (!state.group.assignment) return toast(t("selectFirst"), true);
+  if (!state.group.window.open || state.group.group.archived) return toast(t("WINDOW_CLOSED"), true);
+  const places = approvedPlaces(), place = places.find(p => p.store_key === key);
+  if (!place) {
+    showDialog(t("enterPrices"), `<p class="form-intro">${t("gpsHint")}</p>${storeKeys.map(k => `<div class="request-row"><strong>${storeLabel(k)}</strong>${button(t("enterPrices"), "store-prices", "", "primary small", `data-store="${k}" ${places.some(p => p.store_key === k) ? "" : "disabled"}`)}</div>`).join("")}<p class="inline-note">${t("LOCATION_REQUIRED")}</p>${button(t("checkGps"), "gps-start", "", "secondary")}`);
+    startGps(); return;
+  }
+  const { assignment: product, latest, today } = state.group;
+  const recorded = state.group.collectedStores?.includes(key), value = latest?.[key], unavailable = recorded && value === null;
+  showDialog(`${e(place.name)} · ${e(nameOf(product))}`, `<form data-form="prices" data-store="${key}"><p class="form-intro">${t("priceFormHint", { unit: t(product.unit) })}</p><p class="gps-status" data-gps-store="${key}">${t("gpsSearching")}</p>${field(t("observedDate"), `<input type="date" name="observedOn" value="${today}" max="${today}" min="${localInput(product.started_at).slice(0,10)}" required>`)}${field(`${t("price")} · ${t("currency")}`, `<input name="price" type="number" inputmode="decimal" min="0.01" max="100000000" step="0.01" ${unavailable ? "disabled" : "required"} value="${value == null ? "" : value / 100}">`)}<label class="checkbox"><input type="checkbox" name="unavailable" ${unavailable ? "checked" : ""}>${t("unavailable")}</label><p class="inline-note">${t("revisionHint")}</p>${formFooter()}</form>`);
+  const check = dialog.querySelector('[name="unavailable"]'), input = dialog.querySelector('[name="price"]');
+  check.onchange = () => { input.disabled = check.checked; input.required = !check.checked; };
+  startGps(); updateGps();
+}
+
 function changeProductDialog(product) {
   showDialog(t("changeProduct"), `<form data-form="change-product" data-id="${product.id}">
     <div class="change-summary"><span>${e(nameOf(state.group.assignment))}</span>${icon("arrow")}<strong>${e(nameOf(product))}</strong></div>
-    <p class="form-intro">${t("changeWarning")}</p>
+    <p class="form-intro">${t("approvalChangeHint")}</p>
     ${field(t("changeReason"), `<select name="reason" required><option value="">${t("selectReason")}</option>${["unavailable", "discontinued", "seasonal", "other"].map(reason => `<option value="${reason}">${t(`reason_${reason}`)}</option>`).join("")}</select>`)}
     ${field(t("reasonNote"), `<textarea name="reasonNote" rows="3" maxlength="500" placeholder="${t("reasonNoteHint")}"></textarea>`)}
-    <p class="inline-note">${icon("info")}${t("reasonRequiredHint")}</p>${formFooter(t("changeProduct"))}</form>`);
+    <p class="inline-note">${icon("info")}${t("reasonRequiredHint")}</p>${formFooter(t("sendRequest"))}</form>`);
 }
 function recordDialog(id) {
   const r = state.history.records.find(row => row.id === id);
   if (!r) return;
-  showDialog(`${e(nameOf(r))} · ${e(r.member_name)}`, `<p class="form-intro">${t("assignmentPeriod")}: ${date(r.started_at, true)} → ${r.ended_at ? date(r.ended_at, true) : t("ongoing")}</p>${r.ended_at ? `<div class="reason-box"><strong>${t("changeReason")}</strong><div>${reasonContent(r)}</div></div>` : ""}<div class="revision-list">${r.revisions.map(v => `<article class="revision-card"><div class="row"><span class="badge green">${t("revision", { count: v.version })}</span><span class="muted">${date(v.created_at, true)}</span></div><p>${t("observedDate")}: ${date(v.observed_on)}</p><div class="revision-prices"><div><span>Korzinka</span><strong>${money(v.korzinka)}</strong></div><div><span>${e(v.secondary_store)}</span><strong>${money(v.secondary)}</strong></div><div><span>${e(v.local_store)}</span><strong>${money(v.local)}</strong></div></div><small class="muted">${t("currency")} / 1 ${t(r.unit)}</small></article>`).join("")}</div>`, true);
+  showDialog(`${e(nameOf(r))} · ${e(r.member_name)}`, `<p class="form-intro">${t("assignmentPeriod")}: ${date(r.started_at, true)} → ${r.ended_at ? date(r.ended_at, true) : t("ongoing")}</p>${r.ended_at ? `<div class="reason-box"><strong>${t("changeReason")}</strong><div>${reasonContent(r)}</div></div>` : ""}<div class="revision-list">${r.revisions.map(v => `<article class="revision-card"><div class="row"><span class="badge green">${t("revision", { count: v.version })}</span><span class="muted">${date(v.created_at, true)}</span></div><p>${t("observedDate")}: ${date(v.observed_on)}</p><div class="revision-prices"><div><span>Korzinka</span><strong>${v.collectedStores?.includes("korzinka") ? money(v.korzinka) : t("notCollected")}</strong></div><div><span>${e(v.secondary_store)}</span><strong>${v.collectedStores?.includes("secondary") ? money(v.secondary) : t("notCollected")}</strong></div><div><span>${e(v.local_store)}</span><strong>${v.collectedStores?.includes("local") ? money(v.local) : t("notCollected")}</strong></div></div><small class="muted">${t("currency")} / 1 ${t(r.unit)}</small>${v.observations?.map(o => `<p class="gps-status">${e(o.location_name)} · ${Math.round(o.distance)} m · ±${Math.round(o.accuracy)} m · ${date(o.measured_at, true)}</p>`).join("") || ""}</article>`).join("")}</div>`, true);
 }
 function newInviteDialog() {
   showDialog(t("newInvite"), `<form data-form="new-invite"><p class="form-intro">${t("invitePrivacy")}</p>${field(`${t("expiresAt")} · ${t("optional")}`, `<input type="datetime-local" name="expiresAt">`)}${field(`${t("maxUses")} · ${t("optional")}`, `<input type="number" name="maxUses" min="1" max="10000" placeholder="${t("unlimited")}">`)}${formFooter(t("create"))}</form>`);
@@ -352,13 +434,30 @@ document.addEventListener("click", async event => {
   const action = el.dataset.action, id = Number(el.dataset.id), groupId = state.group?.group.id;
   try {
     switch (action) {
+      case "gps-start": startGps(); break;
+      case "store-location": locationDialog(el.dataset.store); break;
+      case "store-prices": priceDialog(el.dataset.store); break;
+      case "review-location": reviewLocationDialog(id); break;
+      case "map-current": {
+        try { const point = await currentFix(); activeMap?.set(point); const f = dialog.querySelector('form[data-form="location"]');
+          if (f) { f.elements.latitude.value = point.latitude.toFixed(6); f.elements.longitude.value = point.longitude.toFixed(6); }
+        } catch (error) { toast(t(error.message), true); } break;
+      }
+      case "approve-change": case "reject-change": case "cancel-change":
+      case "approve-location": case "reject-location": {
+        const [decision, type] = action.split("-");
+        confirmDialog(t(decision === "approve" ? "approve" : decision === "reject" ? "reject" : "cancel"), t("reviewConfirm"), async () => {
+          await api(`/groups/${groupId}/${type === "change" ? "changes" : "locations"}/${id}/${decision}`, "POST", {});
+          closeDialog(); toast(t("saved")); await load();
+        }); break;
+      }
       case "theme": setTheme(state.theme === "dark" ? "light" : "dark"); break;
       case "menu": document.body.classList.toggle("menu-open"); break;
       case "close-dialog": closeDialog(); break;
       case "overview": go("overview"); break;
       case "retry": await load(); break;
       case "new-group": newGroupDialog(); break;
-      case "logout": await api("/logout", "POST", {}); state.user = null; state.csrf = null; state.authMode = null; go("overview"); break;
+      case "logout": stopGps(); await api("/logout", "POST", {}); state.user = null; state.csrf = null; state.authMode = null; go("overview"); break;
       case "auth-login": state.authMode = "login"; renderAuth(routeInfo(), state.invite); break;
       case "auth-register": state.authMode = null; renderAuth(routeInfo(), state.invite); break;
       case "back-login": state.authMode = null; go("overview"); break;
@@ -473,20 +572,24 @@ document.addEventListener("submit", async event => {
     } else if (kind === "add-catalog" || kind === "custom-product") {
       await api(`/groups/${groupId}/products`, "POST", kind === "add-catalog" ? { productKeys: data.getAll("productKeys") } : values);
       closeDialog(); toast(t("saved")); await load();
+    } else if (kind === "location") {
+      await api(`/groups/${groupId}/locations`, "POST", { storeKey: form.dataset.store, name: values.name,
+        brand: values.brand, latitude: Number(values.latitude), longitude: Number(values.longitude) });
+      closeDialog(); toast(t("requestSent")); await load();
     } else if (kind === "prices") {
+      const key = form.dataset.store;
+      let fix; try { fix = await currentFix(); } catch (error) { throw new Error(t(error.message)); }
+      gps.fix = fix;
       await api(`/groups/${groupId}/submissions`, "POST", {
         assignmentId: state.group.assignment.id, observedOn: values.observedOn,
-        korzinka: values.korzinkaUnavailable ? null : Number(values.korzinka),
-        secondary: values.secondaryUnavailable ? null : Number(values.secondary),
-        local: values.localUnavailable ? null : Number(values.local),
-        secondaryStore: values.secondaryStore, localStore: values.localStore
+        storeKey: key, [key]: values.unavailable ? null : Number(values.price), location: fix
       });
       closeDialog(); toast(t("priceSaved")); await load();
     } else if (kind === "change-product") {
       await api(`/groups/${groupId}/assign`, "POST", {
         productId: Number(form.dataset.id), reason: values.reason, reasonNote: values.reasonNote
       });
-      closeDialog(); toast(t("selectedSuccess")); await load();
+      closeDialog(); toast(t("requestSent")); await load();
     } else if (kind === "schedule") {
       const payload = { mode: values.mode };
       if (values.mode === "manual") payload.open = data.has("open");
@@ -518,16 +621,19 @@ document.addEventListener("submit", async event => {
 });
 window.addEventListener("hashchange", () => {
   const route = routeInfo();
+  if (route.id !== state.lastGroup || route.tab !== "products") stopGps();
   if (route.id !== state.lastGroup) { state.filters = {}; state.lastGroup = route.id; }
   state.search = ""; state.category = "all"; closeDialog(); load(); window.scrollTo(0, 0);
 });
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopGps(); });
+setInterval(updateGps, 3000);
 // Refresh server-controlled windows without interrupting forms or typed filters.
 setInterval(async () => {
   if (!state.user || document.hidden || dialog.open || state.busy || routeInfo().page !== "group") return;
   const route = routeInfo();
   try {
     const fresh = await api(`/groups/${route.id}`);
-    if (routeInfo().id === route.id && !dialog.open && !state.busy && fresh.window.open !== state.group?.window.open) {
+    if (routeInfo().id === route.id && !dialog.open && !state.busy && (fresh.window.open !== state.group?.window.open || JSON.stringify([fresh.changeRequests,fresh.locations,fresh.assignment]) !== JSON.stringify([state.group?.changeRequests,state.group?.locations,state.group?.assignment]))) {
       state.group = fresh; await load();
     }
   } catch { /* A foreground action will display connection errors. */ }
