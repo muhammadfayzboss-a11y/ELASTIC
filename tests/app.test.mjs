@@ -404,6 +404,35 @@ test("per-store collection retains other prices, counts complete sets and keeps 
 });
 
 
+test("missing prices are private to each group, track partial stores and reset for the next period", async t => {
+  const { admin, group, student, price, setClock } = await fixture(t);
+  const id = await group(), otherId = await group("Other group");
+  const alice = await student(id, "alice"), bob = await student(id, "bob"), other = await student(otherId, "other");
+  const members = async groupId => (await admin.ok(`/groups/${groupId}/members`)).members;
+  assert.deepEqual((await members(id)).map(m => m.username).sort(), ["alice", "bob"]);
+  assert.deepEqual((await members(otherId)).map(m => m.username), ["other"]);
+  assert.equal((await alice.request(`/groups/${id}/members`)).status, 403);
+  assert.equal((await other.request(`/groups/${id}/members`)).status, 403);
+  assert.ok((await members(id)).every(m => !m.submitted && m.collectedStores.length === 0));
+  const product = (await alice.ok(`/groups/${id}`)).products[0];
+  const assignment = await alice.ok(`/groups/${id}/assign`, "POST", {productId:product.id});
+  await admin.ok(`/groups/${id}/schedule`, "POST", {mode:"manual",open:true});
+  await alice.ok(`/groups/${id}/submissions`, "POST", {...price(assignment.id),storeKey:"korzinka"});
+  let member = (await members(id)).find(m => m.id === alice.user.id);
+  assert.equal(member.submitted, false); assert.deepEqual(member.collectedStores, ["korzinka"]);
+  for (const key of ["secondary", "local"]) await alice.ok(`/groups/${id}/submissions`, "POST", {...price(assignment.id),storeKey:key,[key]:null});
+  member = (await members(id)).find(m => m.id === alice.user.id);
+  assert.equal(member.submitted, true); assert.equal(member.collectedStores.length, 3);
+  await admin.ok(`/groups/${id}/members/${bob.user.id}/remove`, "POST", {});
+  assert.deepEqual((await members(id)).filter(m => m.active && !m.submitted), []);
+  await admin.ok(`/groups/${id}/schedule`, "POST", {mode:"manual",open:false});
+  setClock("2026-10-27T07:00:00.000Z");
+  await admin.ok("/login", "POST", {username:"teacher", password:PASSWORD});
+  await admin.ok(`/groups/${id}/schedule`, "POST", {mode:"manual",open:true});
+  member = (await members(id)).find(m => m.id === alice.user.id);
+  assert.equal(member.submitted, false); assert.deepEqual(member.collectedStores, []);
+});
+
 test("GPS radius is exactly 100 metres, independently of the reported accuracy", async () => {
  const {locationError}=await import("../lib/location.mjs"); const now="2026-10-23T00:00:00Z", p={latitude:0,longitude:0};
  const fix=metres=>({latitude:metres/6371008.8*180/Math.PI,longitude:0,accuracy:30,timestamp:Date.parse(now)});

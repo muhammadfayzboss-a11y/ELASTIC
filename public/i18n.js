@@ -24,6 +24,10 @@ d("reasonRequiredHint", "Sabab ustozga va sizga tarixda ko‘rinadi. «Boshqa sa
 d("reasonNotRecorded", "Sabab qayd etilmagan", "Reason not recorded", "Причина не зафиксирована");
 d("CHANGE_REASON_REQUIRED", "Mahsulotni almashtirish sababini tanlang.", "Choose a reason for changing your product.", "Выберите причину замены продукта.");
 d("CHANGE_NOTE_REQUIRED", "«Boshqa sabab» uchun kamida 5 belgilik izoh yozing.", "Explain the other reason using at least 5 characters.", "Поясните другую причину, используя не менее 5 символов.");
+d("missingPrices", "Kim narx kiritmagan?", "Who has not submitted prices?", "Кто не внёс цены?");
+d("missingPricesHint", "Faqat shu guruhning joriy davri. Uchala savdo joyi bo‘yicha narx kiritilganda a’zo ro‘yxatdan chiqadi.", "This group’s current period only. Members leave this list after recording prices at all three stores.", "Только текущий период этой группы. Участник исчезает из списка после внесения цен по всем трём торговым точкам.");
+d("missingStores", "Narx kiritilmagan joylar", "Stores still missing prices", "Точки без внесённых цен");
+d("allPricesSubmitted", "Barcha a’zolar uchala savdo joyi bo‘yicha narx kiritgan.", "All members have recorded prices at all three stores.", "Все участники внесли цены по всем трём торговым точкам.");
 d("overview", "Umumiy ko‘rinish", "Overview", "Обзор");
 d("groups", "Guruhlar", "Groups", "Группы");
 d("catalog", "Mahsulotlar katalogi", "Product catalog", "Каталог продуктов");

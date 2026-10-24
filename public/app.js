@@ -200,7 +200,12 @@ function productList() {
 function groupProducts() {
   const { assignment, group, latest, window } = state.group;
   const own = !group.isAdmin ? assignment ? `<section class="assignment-card"><div class="assignment-info">${productBadge(assignment)}<div><span class="tiny-label">${t("mine")}</span><h2>${e(nameOf(assignment))}</h2><p>${t("perUnit", { unit: t(assignment.unit) })} · ${date(assignment.started_at)}</p>${latest && state.group.collectedStores?.length === 3 ? `<small class="success-text">${icon("check")}${t("periodSubmitted")}</small>` : ""}</div></div><div class="assignment-actions">${button(t(latest ? "editPrices" : "enterPrices"), "prices", "plus", "primary", !window.open || group.archived ? "disabled" : "")}${button(t("changeProduct"), "change-product", "", "text", group.archived ? "disabled" : "")}</div></section>` : `<div class="notice choose-notice">${icon("box")}<div><strong>${t("noAssignment")}</strong><p>${t("noAssignmentText")}</p></div></div>` : "";
-  return own + requestsPanel() + storesPanel() + `<section class="panel catalog-panel"><div class="toolbar"><label class="search">${icon("search")}<input id="product-search" value="${e(state.search)}" placeholder="${t("searchProducts")}" aria-label="${t("searchProducts")}"></label>${group.isAdmin ? button(t("addProduct"), "add-product", "plus", "secondary", group.archived ? "disabled" : "") : `<label class="checkbox"><input type="checkbox" id="available-only" ${state.availableOnly ? "checked" : ""}>${t("showAvailable")}</label>`}</div>${categoryTabs()}<div class="product-grid" id="product-list">${productList()}</div></section>`;
+  return own + missingPricesPanel() + requestsPanel() + storesPanel() + `<section class="panel catalog-panel"><div class="toolbar"><label class="search">${icon("search")}<input id="product-search" value="${e(state.search)}" placeholder="${t("searchProducts")}" aria-label="${t("searchProducts")}"></label>${group.isAdmin ? button(t("addProduct"), "add-product", "plus", "secondary", group.archived ? "disabled" : "") : `<label class="checkbox"><input type="checkbox" id="available-only" ${state.availableOnly ? "checked" : ""}>${t("showAvailable")}</label>`}</div>${categoryTabs()}<div class="product-grid" id="product-list">${productList()}</div></section>`;
+}
+function missingPricesPanel() {
+  if (!state.group.group.isAdmin) return "";
+  const pending = (state.members || []).filter(m => m.active && !m.submitted);
+  return `<section class="panel request-panel"><div class="panel-heading"><h2>${t("missingPrices")} <span class="count">${pending.length}</span></h2><span class="muted">${t("thisPeriod")}</span></div><p class="gps-help">${t("missingPricesHint")}</p>${pending.length ? `<div class="table-wrap"><table><thead><tr><th>${t("member")}</th><th>${t("product")}</th><th>${t("missingStores")}</th></tr></thead><tbody>${pending.map(m => `<tr><td><strong>${e(m.name)}</strong><div class="muted">@${e(m.username)}</div></td><td>${m.product_id ? e(nameOf(m)) : `<span class="muted">${t("noProduct")}</span>`}</td><td>${[ ["korzinka", "Korzinka"], ["secondary", "Havas / Mall"], ["local", t("localShop")] ].filter(([key]) => !m.collectedStores?.includes(key)).map(([, label]) => `<span class="badge amber">${e(label)}</span>`).join(" ")}</td></tr>`).join("")}</tbody></table></div>` : `<p class="gps-help">${t((state.members || []).some(m => m.active) ? "allPricesSubmitted" : "noMembers")}</p>`}</section>`;
 }
 function membersView() {
   const members = state.members || [];
@@ -287,7 +292,7 @@ async function load() {
       const data = await api(`/groups/${route.id}`);
       if (request !== state.request) return;
       state.group = data;
-      if (route.tab === "members" || (route.tab === "history" && data.group.isAdmin)) state.members = (await api(`/groups/${route.id}/members`)).members;
+      if (data.group.isAdmin) state.members = (await api(`/groups/${route.id}/members`)).members;
       if (route.tab === "history") {
         const [history, assignments] = await Promise.all([api(`/groups/${route.id}/history?${new URLSearchParams(state.filters)}`), api(`/groups/${route.id}/assignments`)]);
         state.history = history; state.assignments = assignments.assignments;
