@@ -150,3 +150,12 @@ dialog{border:1px solid #e3ebd9;border-radius:19px;padding:27px;width:min(480px,
 .gps-permission-help{margin:0 24px 20px;padding:14px;border:1px solid var(--line);border-radius:10px;font-size:12px;line-height:1.7}.gps-permission-help[hidden]{display:none}.gps-permission-help summary{cursor:pointer;font-weight:600}.gps-permission-help p{margin:10px 0;white-space:pre-line}.gps-permission-help .btn{margin-top:8px}dialog .gps-permission-help{margin:12px 0}
 
 .heading-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.admin-invites-panel{margin-top:24px}@media(max-width:700px){.heading-actions{justify-content:flex-start}}
+
+/* Keep standalone content clear of the iPhone status bar and home indicator. */
+body{padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:2000;pointer-events:none}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 12px)}
+.sidebar{top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);left:env(safe-area-inset-left,0px)}
+dialog{max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 24px)}
+@media(display-mode:standalone){dialog{margin-top:max(12px,env(safe-area-inset-top,0px));margin-bottom:auto}}
+.gps-status[hidden]{display:none}

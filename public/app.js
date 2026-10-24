@@ -1,5 +1,5 @@
 import { productArt } from "./product-art.js";
-import { storeKeys, distanceMeters, locationError, currentFix, mountMap, configureMaps, watchFix, isAppleStandalone } from "./location.js";
+import { storeKeys, distanceMeters, locationError, currentFix, mountMap, configureMaps, watchFix, isAppleStandalone, bindGpsLifecycle } from "./location.js";
 import { languages, messages } from "./i18n.js";
 
 const app = document.querySelector("#app"), dialog = document.querySelector("#modal");
@@ -102,11 +102,12 @@ function toast(message, bad = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { target.className = ""; }, 5000);
 }
 function showDialog(title, content, wide = false) {
+  locationRequest?.abort(); locationRequest = null; activeMap?.destroy(); activeMap = null;
   dialog.className = wide ? "wide" : "";
   dialog.innerHTML = `<div class="dialog-heading"><h2 id="dialog-title">${title}</h2><button type="button" class="icon-btn" data-action="close-dialog" aria-label="${t("close")}">${icon("close")}</button></div>${content}`;
   if (!dialog.open) dialog.showModal();
 }
-function closeDialog() { activeMap?.destroy(); activeMap = null; if (dialog.open) dialog.close(); state.confirm = null; }
+function closeDialog() { locationRequest?.abort(); locationRequest = null; activeMap?.destroy(); activeMap = null; if (dialog.open) dialog.close(); state.confirm = null; }
 function confirmDialog(title, explanation, callback) {
   state.confirm = callback;
   showDialog(title, `<p class="dialog-intro">${explanation}</p><div class="dialog-actions">${button(t("cancel"), "close-dialog", "", "secondary")}${button(t("save"), "confirm", "check")}</div>`);
@@ -343,34 +344,47 @@ function customProductDialog() {
 }
 const approvedPlaces = () => (state.group?.locations || []).filter(p => p.user_id === state.user?.id && p.status === "approved");
 const storeLabel = key => key === "korzinka" ? "Korzinka" : key === "secondary" ? "Havas / Mall" : t("localShop");
-const gps = { watch: null, fix: null, error: "GPS_REQUIRED", inside: new Set(), group: null };
-let activeMap = null;
+const gps = { watch: null, fix: null, error: "GPS_REQUIRED", inside: new Set(), group: null, enabled: false };
+let activeMap = null, locationRequest = null;
 function stopGps() {
   gps.watch?.();
-  gps.watch = null; gps.fix = null; gps.inside.clear(); gps.group = null;
+  gps.watch = null; gps.fix = null; gps.inside.clear(); gps.group = null; gps.enabled = false; gps.error = "GPS_REQUIRED";
 }
 function updateGps() {
   const time = new Date().toISOString(), places = approvedPlaces();
   for (const el of document.querySelectorAll("[data-gps-store]")) {
     const place = places.find(p => p.store_key === el.dataset.gpsStore);
     const error = !place ? "LOCATION_REQUIRED" : locationError(gps.fix, place, time);
-    el.textContent = !place ? t("LOCATION_REQUIRED") : !gps.fix ? t(gps.error) :
-      `${Math.round(distanceMeters(gps.fix, place))} m · ±${Math.round(gps.fix.accuracy)} m · ${t(error || "gpsReady")}`;
+    const status = error || (!state.group?.assignment ? "selectFirst" : !state.group.window.open || state.group.group.archived ? "WINDOW_CLOSED" : "gpsReady");
+    // A kilometre-scale network estimate cannot establish the distance to a 100 m zone.
+    el.textContent = !place ? "" : !gps.fix ? t(gps.error) : error === "GPS_INACCURATE" ?
+      `${t("gpsAccuracy", { n: num(Math.round(gps.fix.accuracy)) })} · ${t("gpsImproving")}` : error === "GPS_REQUIRED" || error === "GPS_STALE" ? t(error) :
+      `${num(Math.round(distanceMeters(gps.fix, place)))} m · ±${num(Math.round(gps.fix.accuracy))} m · ${t(status)}`;
+    el.hidden = !place;
   }
-  for (const help of document.querySelectorAll("[data-gps-permission-help]")) help.hidden = gps.error !== "GPS_DENIED";
+  const problem = gps.error === "GPS_DENIED" ? "GPS_DENIED" : gps.fix && locationError(gps.fix, {latitude:gps.fix.latitude,longitude:gps.fix.longitude}, time) || gps.error;
+  for (const help of document.querySelectorAll("[data-gps-permission-help]")) {
+    help.hidden = !["GPS_DENIED", "GPS_INACCURATE", "GPS_STALE", "GPS_TIMEOUT", "GPS_UNAVAILABLE"].includes(problem);
+    help.querySelector("[data-gps-help-text]").textContent = t(problem === "GPS_DENIED" ? isAppleStandalone() ? "gpsAppleStandaloneHelp" : "gpsBrowserHelp" : "gpsAccuracyHelp");
+  }
+  for (const button of document.querySelectorAll('[data-action="store-prices"][data-store]')) {
+    const place = places.find(p => p.store_key === button.dataset.store);
+    button.disabled = !place || !state.group?.assignment || !state.group.window.open || state.group.group.archived;
+  }
   const priceForm = dialog.querySelector('form[data-form="prices"]');
   if (priceForm) {
     const place = places.find(p => p.store_key === priceForm.dataset.store);
     const error = !place ? "LOCATION_REQUIRED" : locationError(gps.fix, place, time);
     const submit = priceForm.querySelector('button[type="submit"]');
-    if (submit && !state.busy) submit.disabled = Boolean(error) || !state.group.window.open;
+    if (submit && !state.busy) submit.disabled = Boolean(error) || !state.group?.assignment || !state.group.window.open || state.group.group.archived;
   }
 }
 function startGps() {
+  if (!state.user || !state.group || state.group.group.isAdmin || state.group.group.archived || routeInfo().page !== "group" || routeInfo().id !== state.group.group.id || routeInfo().tab !== "products" || document.hidden) return;
   if (!window.isSecureContext) { gps.error = "GPS_HTTPS"; updateGps(); return toast(t(gps.error), true); }
-  if (!navigator.geolocation) return toast(t("GPS_REQUIRED"), true);
+  if (!navigator.geolocation) { gps.error = "GPS_REQUIRED"; updateGps(); return toast(t(gps.error), true); }
   if (gps.watch !== null) return updateGps();
-  gps.group = state.group.group.id; gps.error = "gpsSearching";
+  gps.enabled = true; gps.group = state.group.group.id; gps.error = "gpsSearching";
   const stop = watchFix(fix => {
     if (document.hidden || routeInfo().id !== gps.group || !state.user) return stopGps();
     gps.fix = fix; gps.error = ""; updateGps();
@@ -380,16 +394,17 @@ function startGps() {
     if (entered && !dialog.open && !state.busy && state.group.window.open && !state.group.group.archived && routeInfo().tab === "products" && state.group.assignment) priceDialog(entered.store_key);
   }, code => {
     if (code === "GPS_DENIED") stopGps();
-    gps.fix = null; gps.error = code; updateGps();
+    gps.error = code; updateGps();
   });
   if (gps.error === "GPS_DENIED") stop(); else gps.watch = stop;
   updateGps();
 }
 function gpsPermissionHelp() {
-  return `<div class="gps-permission-help" data-gps-permission-help hidden><details><summary>${t("gpsPermissionHelp")}</summary><p>${t(isAppleStandalone() ? "gpsAppleStandaloneHelp" : "gpsBrowserHelp")}</p></details>${button(t("gpsRetry"), "gps-start", "", "secondary small")}</div>`;
+  return `<div class="gps-permission-help" data-gps-permission-help hidden><details><summary>${t("gpsPermissionHelp")}</summary><p data-gps-help-text></p></details>${button(t("gpsRetry"), "gps-start", "", "secondary small")}</div>`;
 }
 function gpsFailure(code) {
   if (code === "GPS_DENIED") stopGps();
+  if (code !== "GPS_DENIED" && gps.fix && locationError(gps.fix, gps.fix, new Date().toISOString())) gps.fix = null;
   gps.error = code; updateGps();
 }
 function requestsPanel() {
@@ -476,13 +491,15 @@ document.addEventListener("click", async event => {
       case "review-location": reviewLocationDialog(id); break;
       case "map-current": {
         const originalLabel = el.textContent, mapAtStart = activeMap;
+        locationRequest?.abort(); const request = locationRequest = new AbortController();
         el.disabled = true; el.textContent = t("gpsSearching");
-        try { const point = await currentFix({ onProgress: fix => { if (el.isConnected) el.textContent = t("gpsAccuracy", {n:Math.round(fix.accuracy)}); } });
+        try { const point = await currentFix({ signal: request.signal, onProgress: fix => { if (el.isConnected) el.textContent = t("gpsAccuracy", {n:num(Math.round(fix.accuracy))}); } });
           if (activeMap !== mapAtStart || !el.isConnected) break;
+          gps.fix = point; gps.error = ""; updateGps();
           activeMap?.set(point); const f = dialog.querySelector('form[data-form="location"]');
           if (f) { f.elements.latitude.value = point.latitude.toFixed(6); f.elements.longitude.value = point.longitude.toFixed(6); }
-        } catch (error) { gpsFailure(error.message); toast(t(error.message), true); }
-        finally { el.disabled = false; el.textContent = originalLabel; } break;
+        } catch (error) { if (!request.signal.aborted && el.isConnected) { gpsFailure(error.message); toast(t(error.message), true); } }
+        finally { if (locationRequest === request) locationRequest = null; el.disabled = false; el.textContent = originalLabel; } break;
       }
       case "approve-change": case "reject-change": case "cancel-change":
       case "approve-location": case "reject-location": {
@@ -637,7 +654,11 @@ document.addEventListener("submit", async event => {
     } else if (kind === "prices") {
       const key = form.dataset.store;
       const assignmentId = state.group.assignment.id;
-      let fix; try { fix = await currentFix(); } catch (error) { gpsFailure(error.message); throw new Error(t(error.message)); }
+      locationRequest?.abort(); const request = locationRequest = new AbortController();
+      let fix; try { fix = await currentFix({ signal:request.signal }); } catch (error) {
+        if (request.signal.aborted) return;
+        gpsFailure(error.message); throw new Error(t(error.message));
+      } finally { if (locationRequest === request) locationRequest = null; }
       if (!form.isConnected || !dialog.open || state.group?.group.id !== groupId || state.group?.assignment?.id !== assignmentId) return;
       gps.fix = fix;
       await api(`/groups/${groupId}/submissions`, "POST", {
@@ -685,7 +706,10 @@ window.addEventListener("hashchange", () => {
   if (route.id !== state.lastGroup) { state.filters = {}; state.lastGroup = route.id; }
   state.search = ""; state.category = "all"; closeDialog(); load(); window.scrollTo(0, 0);
 });
-document.addEventListener("visibilitychange", () => { if (document.hidden) stopGps(); });
+dialog.addEventListener("cancel", () => closeDialog());
+bindGpsLifecycle({ active: () => gps.enabled ? gps.group : null,
+  suspend: () => { stopGps(); locationRequest?.abort(); updateGps(); },
+  resume: groupId => { if (state.group?.group.id === groupId && routeInfo().id === groupId) startGps(); } });
 setInterval(updateGps, 3000);
 // Refresh server-controlled windows without interrupting forms or typed filters.
 setInterval(async () => {

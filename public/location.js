@@ -3,51 +3,82 @@ let mapsConfig = { apiKey: "" };
 export function configureMaps(value) { mapsConfig = { apiKey: typeof value?.apiKey === "string" ? value.apiKey : "" }; }
 export { storeKeys, distanceMeters, locationError } from "./geo.js";
 export const isAppleStandalone = () => navigator.standalone === true;
-// A denied watcher is terminal. Clear it so a later user click starts a new request.
-export function watchFix(onFix, onError) {
+const freshFix = (fix, now = Date.now()) => coordinates(fix) && Number.isFinite(fix.timestamp) &&
+  Number.isFinite(fix.accuracy) && fix.accuracy > 0 && now - fix.timestamp <= 30000 && now - fix.timestamp >= -5000;
+// Keep a recent precise reading through a coarse network update; precise movement wins immediately.
+export function selectFix(previous, next, now = Date.now()) {
+  if (!freshFix(next, now)) return freshFix(previous, now) ? previous : null;
+  if (freshFix(previous, now) && (next.timestamp < previous.timestamp || previous.accuracy <= 50 && next.accuracy > 50)) return previous;
+  return next;
+}
+// Refresh stalled watches, including stationary iPhones that stop delivering fresh timestamps.
+// Permission denial is terminal; only a new user action may request it again.
+export function watchFix(onFix, onError, { retryAfter = 20000 } = {}) {
   if (!window.isSecureContext) { onError("GPS_HTTPS"); return () => {}; }
   if (!navigator.geolocation) { onError("GPS_REQUIRED"); return () => {}; }
-  let id = null, closed = false;
-  const stop = () => { closed = true; if (id !== null) { navigator.geolocation.clearWatch(id); id = null; } };
-  const watchId = navigator.geolocation.watchPosition(position => {
-    if (!closed) onFix(toFix(position));
-  }, error => {
-    if (closed) return;
-    if (error.code === 1) stop();
-    onError(error.code === 1 ? "GPS_DENIED" : "GPS_REQUIRED");
-  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
-  id = watchId;
-  if (closed) stop();
+  let id = null, closed = false, generation = 0, best = null, requestedAt = 0;
+  const clear = () => { if (id !== null) { navigator.geolocation.clearWatch(id); id = null; } };
+  const stop = () => { closed = true; generation++; clearInterval(heartbeat); clear(); };
+  const request = () => {
+    clear(); const version = ++generation; requestedAt = Date.now();
+    const watchId = navigator.geolocation.watchPosition(position => {
+      if (closed || version !== generation) return;
+      const next = selectFix(best, toFix(position));
+      if (next && next !== best) { best = next; onFix(next); }
+    }, error => {
+      if (closed || version !== generation) return;
+      if (error.code === 1) stop();
+      onError(error.code === 1 ? "GPS_DENIED" : error.code === 3 ? "GPS_TIMEOUT" : "GPS_UNAVAILABLE");
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    id = watchId;
+    if (closed) clear();
+  };
+  const heartbeat = setInterval(() => {
+    if (closed || Date.now() - requestedAt < retryAfter) return;
+    if (!best || best.accuracy > 50 || Date.now() - best.timestamp >= retryAfter) request();
+  }, Math.min(5000, retryAfter));
+  request();
   return stop;
 }
 // Wait for a precise fresh fix instead of accepting the first coarse network position.
-export function currentFix({ onProgress = () => {}, timeout = 20000 } = {}) {
+export function currentFix({ onProgress = () => {}, timeout = 45000, signal } = {}) {
   return new Promise((resolve, reject) => {
     if (!window.isSecureContext) return reject(new Error("GPS_HTTPS"));
     if (!navigator.geolocation) return reject(new Error("GPS_REQUIRED"));
-    let watch = null, best = null, settled = false, settleTimer = null;
+    if (signal?.aborted) return reject(new DOMException("Aborted", "AbortError"));
+    let stopWatch = null, best = null, settled = false, settleTimer = null, lastError = "GPS_TIMEOUT";
     const finish = (error) => {
       if (settled) return;
       if (!error && best && (Date.now() - best.timestamp > 30000 || Date.now() - best.timestamp < -5000)) error = "GPS_STALE";
       settled = true; clearTimeout(deadline); clearTimeout(settleTimer);
-      if (watch !== null) navigator.geolocation.clearWatch(watch);
+      signal?.removeEventListener("abort", abort); stopWatch?.();
       error ? reject(new Error(error)) : resolve(best);
     };
-    const deadline = setTimeout(() => finish(best && best.accuracy <= 50 ? null : best ? "GPS_INACCURATE" : "GPS_REQUIRED"), timeout);
-    watch = navigator.geolocation.watchPosition(position => {
+    const abort = () => { finish("GPS_CANCELLED"); };
+    const deadline = setTimeout(() => finish(best && best.accuracy <= 50 ? null : best ? "GPS_INACCURATE" : lastError), timeout);
+    signal?.addEventListener("abort", abort, { once: true });
+    const stop = watchFix(fix => {
       if (settled) return;
-      const fix = toFix(position), age = Date.now() - fix.timestamp;
-      if (!coordinates(fix) || !Number.isFinite(fix.timestamp) || !Number.isFinite(fix.accuracy) || fix.accuracy <= 0 || age > 30000 || age < -5000) return;
-      if (!best || Date.now() - best.timestamp > 30000 || fix.accuracy <= best.accuracy) { best = fix; onProgress(fix); }
+      if (!best || !freshFix(best) || fix.accuracy <= best.accuracy) { best = fix; onProgress(fix); }
       if (best.accuracy <= 20) finish(null);
       else if (best.accuracy <= 50 && !settleTimer) settleTimer = setTimeout(() => finish(null), Math.min(4000, timeout));
-    }, error => { if (error.code === 1) finish("GPS_DENIED"); },
-      { enableHighAccuracy: true, maximumAge: 0, timeout });
+    }, code => { lastError = code; if (["GPS_DENIED", "GPS_HTTPS", "GPS_REQUIRED"].includes(code)) finish(code); });
+    stopWatch = stop; if (settled) stop();
   });
 }
+// Do not request access on load. Resume only a check explicitly started by the user.
+export function bindGpsLifecycle({ active, suspend, resume, doc = document, page = window }) {
+  let pending = false;
+  const hide = () => { pending = active() || pending; suspend(); };
+  const show = () => { if (!doc.hidden && pending) { const context = pending; pending = false; resume(context); } };
+  const visibility = () => doc.hidden ? hide() : show();
+  doc.addEventListener("visibilitychange", visibility);
+  page.addEventListener("pagehide", hide); page.addEventListener("pageshow", show);
+  return () => { doc.removeEventListener("visibilitychange", visibility); page.removeEventListener("pagehide", hide); page.removeEventListener("pageshow", show); };
+}
 export function toFix(position) {
-  return { latitude: position.coords.latitude, longitude: position.coords.longitude,
-    accuracy: position.coords.accuracy, timestamp: position.timestamp };
+  return { latitude: position?.coords?.latitude, longitude: position?.coords?.longitude,
+    accuracy: position?.coords?.accuracy, timestamp: position?.timestamp };
 }
 // Leaflet 1.9.4 is served locally; coordinates are obtained from Leaflet's projection.
 export function mountMap(container, initial, onPick, label, readOnly = false, labels = {}) {
