@@ -176,3 +176,80 @@ test("a paused page without prior GPS consent never resumes GPS",()=>{
  doc.dispatchEvent(new Event('visibilitychange'));doc.hidden=false;doc.dispatchEvent(new Event('visibilitychange'));
  assert.equal(resumed,0);unbind();
 });
+
+async function withStandaloneGPS(action) {
+ const original=Object.fromEntries(['window','navigator'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
+ const calls=[],watches=[],cleared=[];let initial;
+ Object.defineProperty(globalThis,'window',{value:{isSecureContext:true},configurable:true});
+ Object.defineProperty(globalThis,'navigator',{value:{standalone:true,
+  permissions:{query(){assert.fail('Permissions API must not block a real request');}},
+  geolocation:{getCurrentPosition(ok,bad,options){calls.push('getCurrentPosition');initial={ok,bad,options};},
+   watchPosition(ok,bad,options){calls.push('watchPosition');watches.push({ok,bad,options});return 42;},
+   clearWatch(id){cleared.push(id);}}},configurable:true});
+ try {await action({calls,watches,cleared,initial:()=>initial});}
+ finally {for(const [key,d]of Object.entries(original)){if(d)Object.defineProperty(globalThis,key,d);else delete globalThis[key];}}
+}
+
+test("Home Screen GPS requests a one-shot location synchronously before watching",()=>withStandaloneGPS(async sensor=>{
+ const fixes=[];const stop=watchFix(f=>fixes.push(f),()=>{});
+ assert.deepEqual(sensor.calls,['getCurrentPosition'],'request starts within the user gesture');
+ assert.deepEqual(sensor.initial().options,{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+ sensor.initial().ok(position(10560));assert.deepEqual(sensor.calls,['getCurrentPosition','watchPosition']);
+ sensor.watches[0].ok(position(8));assert.deepEqual(fixes.map(f=>f.accuracy),[10560,8]);
+ stop();assert.deepEqual(sensor.cleared,[42]);
+}));
+
+test("Home Screen system denial is reported without trying to bypass it",t=>withStandaloneGPS(async sensor=>{
+ t.mock.timers.enable({apis:['Date','setInterval'],now:1800000000000});
+ const errors=[];const stop=watchFix(()=>assert.fail('denied fix'),e=>errors.push(e));
+ sensor.initial().bad({code:1});t.mock.timers.tick(120000);
+ assert.deepEqual(errors,['GPS_DENIED']);assert.deepEqual(sensor.calls,['getCurrentPosition']);stop();
+}));
+
+test("Home Screen permission prompt is not restarted by the watch heartbeat",t=>withStandaloneGPS(async sensor=>{
+ t.mock.timers.enable({apis:['Date','setInterval'],now:1800000000000});
+ const stop=watchFix(()=>{},()=>{});t.mock.timers.tick(120000);
+ assert.deepEqual(sensor.calls,['getCurrentPosition']);stop();
+ sensor.initial().ok(position(5));assert.deepEqual(sensor.calls,['getCurrentPosition']);
+}));
+
+test("Home Screen first-request timeout may recover through a precise watch",()=>withStandaloneGPS(async sensor=>{
+ const fixes=[],errors=[];const stop=watchFix(f=>fixes.push(f),e=>errors.push(e));
+ sensor.initial().bad({code:3});assert.deepEqual(errors,['GPS_TIMEOUT']);
+ sensor.watches[0].ok(position(7));assert.equal(fixes[0].accuracy,7);stop();
+}));
+
+test("precise Home Screen preflight finishes without leaving a continuous watch",()=>withStandaloneGPS(async sensor=>{
+ const pending=currentFix();assert.deepEqual(sensor.calls,['getCurrentPosition']);sensor.initial().ok(position(8));
+ assert.equal((await pending).accuracy,8);assert.deepEqual(sensor.calls,['getCurrentPosition']);assert.deepEqual(sensor.cleared,[]);
+}));
+
+test("cancelled Home Screen preflight ignores a late native permission result",()=>withStandaloneGPS(async sensor=>{
+ const controller=new AbortController(),pending=currentFix({signal:controller.signal});controller.abort();
+ await assert.rejects(pending,/GPS_CANCELLED/);sensor.initial().ok(position(5));
+ assert.deepEqual(sensor.calls,['getCurrentPosition']);
+}));
+
+test("Home Screen denial also permits a later explicit user retry",()=>withStandaloneGPS(async sensor=>{
+ const first=currentFix();sensor.initial().bad({code:1});await assert.rejects(first,/GPS_DENIED/);
+ const retry=currentFix();sensor.initial().ok(position(6));assert.equal((await retry).accuracy,6);
+ assert.deepEqual(sensor.calls,['getCurrentPosition','getCurrentPosition']);
+}));
+
+test("a Home Screen SecurityError stops cleanly instead of leaking a watcher",t=>withStandaloneGPS(async sensor=>{
+ t.mock.timers.enable({apis:['Date','setInterval'],now:1800000000000});
+ navigator.geolocation.getCurrentPosition=()=>{throw new DOMException('Blocked','SecurityError');};
+ await assert.rejects(currentFix(),/GPS_DENIED/);t.mock.timers.tick(120000);assert.deepEqual(sensor.calls,[]);
+}));
+
+test("a browser watch exception is handled without starting automatic retries",t=>withControlledGPS(async(sensor)=>{
+ t.mock.timers.enable({apis:['Date','setInterval'],now:1800000000000});
+ navigator.geolocation.watchPosition=()=>{throw new Error('Provider failed');};
+ const errors=[];const stop=watchFix(()=>{},e=>errors.push(e));t.mock.timers.tick(120000);
+ assert.deepEqual(errors,['GPS_UNAVAILABLE']);assert.equal(sensor.length,0);stop();
+}));
+
+test("a provider exception ends one-shot acquisition without waiting for its deadline",()=>withControlledGPS(async()=>{
+ navigator.geolocation.watchPosition=()=>{throw new Error('Provider failed');};
+ await assert.rejects(currentFix(),/GPS_UNAVAILABLE/);
+}));

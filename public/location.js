@@ -16,28 +16,52 @@ export function selectFix(previous, next, now = Date.now()) {
 export function watchFix(onFix, onError, { retryAfter = 20000 } = {}) {
   if (!window.isSecureContext) { onError("GPS_HTTPS"); return () => {}; }
   if (!navigator.geolocation) { onError("GPS_REQUIRED"); return () => {}; }
-  let id = null, closed = false, generation = 0, best = null, requestedAt = 0;
+  let id = null, closed = false, generation = 0, best = null, requestedAt = 0, prompting = false;
   const clear = () => { if (id !== null) { navigator.geolocation.clearWatch(id); id = null; } };
   const stop = () => { closed = true; generation++; clearInterval(heartbeat); clear(); };
+  const receive = position => {
+    const next = selectFix(best, toFix(position));
+    if (next && next !== best) { best = next; onFix(next); }
+  };
+  const fail = error => {
+    if (error.code === 1) stop();
+    onError(error.code === 1 ? "GPS_DENIED" : error.code === 3 ? "GPS_TIMEOUT" : "GPS_UNAVAILABLE", error.code === 1);
+  };
+  const failedCall = error => { stop(); onError(error?.name === "SecurityError" ? "GPS_DENIED" : "GPS_UNAVAILABLE", true); };
   const request = () => {
     clear(); const version = ++generation; requestedAt = Date.now();
-    const watchId = navigator.geolocation.watchPosition(position => {
+    let watchId;
+    try { watchId = navigator.geolocation.watchPosition(position => {
       if (closed || version !== generation) return;
-      const next = selectFix(best, toFix(position));
-      if (next && next !== best) { best = next; onFix(next); }
+      receive(position);
     }, error => {
       if (closed || version !== generation) return;
-      if (error.code === 1) stop();
-      onError(error.code === 1 ? "GPS_DENIED" : error.code === 3 ? "GPS_TIMEOUT" : "GPS_UNAVAILABLE");
-    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+      fail(error);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }); }
+    catch (error) { failedCall(error); return; }
     id = watchId;
     if (closed) clear();
   };
   const heartbeat = setInterval(() => {
-    if (closed || Date.now() - requestedAt < retryAfter) return;
+    if (closed || prompting || Date.now() - requestedAt < retryAfter) return;
     if (!best || best.accuracy > 50 || Date.now() - best.timestamp >= retryAfter) request();
   }, Math.min(5000, retryAfter));
-  request();
+  // Start the iOS Home Screen request synchronously in the user's click handler.
+  // This uses the actual location API, never the unreliable Permissions API state.
+  // A system-level denial is still a denial: do not loop or claim we can reset it.
+  if (isAppleStandalone() && typeof navigator.geolocation.getCurrentPosition === "function") {
+    prompting = true;
+    try { navigator.geolocation.getCurrentPosition(position => {
+      if (closed) return;
+      prompting = false; receive(position);
+      if (!closed) request();
+    }, error => {
+      if (closed) return;
+      prompting = false; fail(error);
+      if (!closed) request();
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }); }
+    catch (error) { prompting = false; failedCall(error); }
+  } else request();
   return stop;
 }
 // Wait for a precise fresh fix instead of accepting the first coarse network position.
@@ -62,7 +86,7 @@ export function currentFix({ onProgress = () => {}, timeout = 45000, signal } = 
       if (!best || !freshFix(best) || fix.accuracy <= best.accuracy) { best = fix; onProgress(fix); }
       if (best.accuracy <= 20) finish(null);
       else if (best.accuracy <= 50 && !settleTimer) settleTimer = setTimeout(() => finish(null), Math.min(4000, timeout));
-    }, code => { lastError = code; if (["GPS_DENIED", "GPS_HTTPS", "GPS_REQUIRED"].includes(code)) finish(code); });
+    }, (code, terminal) => { lastError = code; if (terminal || ["GPS_DENIED", "GPS_HTTPS", "GPS_REQUIRED"].includes(code)) finish(code); });
     stopWatch = stop; if (settled) stop();
   });
 }

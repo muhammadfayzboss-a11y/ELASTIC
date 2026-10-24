@@ -159,3 +159,4 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 12px)}
 dialog{max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 24px)}
 @media(display-mode:standalone){dialog{margin-top:max(12px,env(safe-area-inset-top,0px));margin-bottom:auto}}
 .gps-status[hidden]{display:none}
+.install-gps-panel{margin-top:24px}.install-gps-panel .gps-status{margin-top:14px}.install-gps-help{font-size:12px;line-height:1.7;margin-top:18px}.install-gps-help summary{cursor:pointer;font-weight:600}.install-gps-help p{white-space:pre-line;margin:12px 0}

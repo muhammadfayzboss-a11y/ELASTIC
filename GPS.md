@@ -31,7 +31,7 @@ Ruxsat rad etilganda kuzatuv tozalanadi; «GPS’ni qayta tekshirish» yangi so�
 Narx shakli yopilmasdan yordamni ochish va qayta tekshirish mumkin.
 Apple standalone holatida iPhone uchun alohida ko‘rsatma chiqadi.
 Agar ruxsat oynasi umuman chiqmasa va Safari’da ishlasa, saytni Safari’da ishlatish
-mumkin. Bosh ekranga qo‘shishda «Open as Web App»ni o‘chirish Safari yorlig‘ini yaratadi.
+mumkin, lekin asosiy yo‘l bosh ekran ilovasining o‘zida ruxsatni tiklashdir.
 Bu telefon ruxsatini chetlab o‘tmaydi: 100 m radius, GPS aniqligi va server tekshiruvlari saqlanadi.
 Bu o‘zgarish iOS 26.6 tizim ruxsati xatosini dastur orqali tuzatildi degani emas.
 Telefonning bloklangan ruxsatini sayt avtomatik yoqa olmaydi.
@@ -55,3 +55,26 @@ Bu sun’iy sinov jismoniy iPhone yoki do‘kon yonidagi o‘lchov o‘rnini bos
 Sayt GPS uskunasini yoki iOS ruxsat tizimini dastur orqali tuzata olmaydi.
 
 Rasmiy asos: https://www.w3.org/TR/geolocation/
+
+## iPhone bosh ekranidagi birinchi ruxsat so‘rovi
+
+Bosh ekran rejimida birinchi chaqiruv `getCurrentPosition()` bilan boshlanadi.
+U «GPS tekshirish», xaritadagi «Hozirgi joyimni olish» yoki Sozlamalardagi
+«Lokatsiyaga ruxsat berish» tugmasi bosilgan oqimda bevosita chaqiriladi.
+Javobdan keyin zarur bo‘lsa `watchPosition()` aniq o‘lchovni/kuzatuvni davom ettiradi.
+Safari va boshqa brauzerlarda mavjud ishlaydigan kuzatuv oqimi saqlangan.
+Bu moslik o‘zgarishi; uning o‘zi iOS tizimidagi saqlangan rad javobini bekor qilmaydi.
+
+- Sozlamalar → Web app va GPS bo‘limi guruhsiz ham lokatsiyani tekshiradi.
+- Ruxsat oynasi ochiq paytda takroriy avtomatik so‘rov yuborilmaydi.
+- `navigator.permissions.query()` natijasi so‘rovni to‘sish uchun ishlatilmaydi.
+- Bekor qilingan so‘rovdan kech kelgan javob e’tiborga olinmaydi; SecurityError ham tozalanadi.
+- Rad javobida ilova ichida qayta o‘rnatish va Apple ruxsatlarni tiklash ko‘rsatmasi bor.
+- Qayta qo‘shishda «Open as Web App» yoqilgan qoladi. Serverdagi hisob va tarix saqlanadi.
+- Oxirgi chora: Reset Location & Privacy barcha ilovalarning maxfiylik/lokatsiya
+  ruxsatlarini tiklaydi, ularga qayta ruxsat berish kerak. Buni sayt avtomatik bajarmaydi.
+
+Avtomatik sinovlar birinchi API chaqiruvi, ruxsat berilishi/rad etilishi, vaqt tugashi,
+bekor qilish va tizim xatosini taqlid qiladi. Ular haqiqiy iOS ruxsat oynasining
+chiqishini isbotlamaydi; bu foydalanuvchining iPhone’ida amaliy tasdiqni talab qiladi.
+Apple ruxsatlarni tiklash yo‘riqnomasi: https://support.apple.com/en-us/102515

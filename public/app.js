@@ -250,7 +250,11 @@ function renderGroup() {
   shell(`<a href="#groups" class="back-link">← ${t("groups")}</a><div class="page-heading group-heading"><div><div class="eyebrow">${t("groups")} / #${group.id}</div><h1>${e(group.name)}</h1><p>${e(group.description || t("groupsHint"))}</p></div>${group.isAdmin ? `<div class="heading-actions">${button(t(group.archived ? "groupRestore" : "groupArchive"), "archive-group", group.archived ? "history" : "lock", "secondary small")}${button(t("deleteGroup"), "delete-group", "trash", "secondary small danger-text")}</div>` : ""}</div>${windowBanner(state.group)}<nav class="group-tabs">${tabs.map(([key, ico]) => `<a href="#group/${group.id}/${key}" class="${tab === key ? "active" : ""}">${icon(ico)}${t(key)}</a>`).join("")}</nav>${content}`, group.name);
 }
 function renderSettings() {
-  shell(`<div class="page-heading"><div><p class="eyebrow">ELASTIC / ${t("settings")}</p><h1>${t("settings")}</h1><p>${t("account")} · @${e(state.user.username)}</p></div></div><div class="two-column"><div class="panel"><div class="panel-heading"><h2>${t("changePassword")}</h2>${icon("lock")}</div><form class="padded-form" data-form="password">${field(t("currentPassword"), `<input type="password" name="current" required maxlength="128" autocomplete="current-password">`)}${field(t("newPassword"), `<input type="password" name="password" required minlength="10" maxlength="128" autocomplete="new-password">`, t("passwordHint"))}<div class="form-error" role="alert"></div><button class="btn primary" type="submit">${t("save")}</button></form></div><div class="panel padded-form"><h2>${t("account")}</h2><div class="setting-row"><span>${t("fullName")}</span><strong>${e(state.user.name)}</strong></div><div class="setting-row"><span>${t("username")}</span><strong>@${e(state.user.username)}</strong></div><div class="setting-row"><span>${t("language")}</span>${languageSelect()}</div><div class="setting-row"><span>${t("appearance")}</span>${themeButton(true)}</div><div class="setting-row"><span>${t("timezone")}</span><strong>${t("tzValue")}</strong></div></div></div>${state.user.role === "admin" ? adminInvitesPanel() : ""}`, t("settings"));
+  shell(`<div class="page-heading"><div><p class="eyebrow">ELASTIC / ${t("settings")}</p><h1>${t("settings")}</h1><p>${t("account")} · @${e(state.user.username)}</p></div></div><div class="two-column"><div class="panel"><div class="panel-heading"><h2>${t("changePassword")}</h2>${icon("lock")}</div><form class="padded-form" data-form="password">${field(t("currentPassword"), `<input type="password" name="current" required maxlength="128" autocomplete="current-password">`)}${field(t("newPassword"), `<input type="password" name="password" required minlength="10" maxlength="128" autocomplete="new-password">`, t("passwordHint"))}<div class="form-error" role="alert"></div><button class="btn primary" type="submit">${t("save")}</button></form></div><div class="panel padded-form"><h2>${t("account")}</h2><div class="setting-row"><span>${t("fullName")}</span><strong>${e(state.user.name)}</strong></div><div class="setting-row"><span>${t("username")}</span><strong>@${e(state.user.username)}</strong></div><div class="setting-row"><span>${t("language")}</span>${languageSelect()}</div><div class="setting-row"><span>${t("appearance")}</span>${themeButton(true)}</div><div class="setting-row"><span>${t("timezone")}</span><strong>${t("tzValue")}</strong></div></div></div>${installGpsPanel()}${state.user.role === "admin" ? adminInvitesPanel() : ""}`, t("settings"));
+}
+function installGpsPanel() {
+  const installed = isAppleStandalone() || window.matchMedia?.("(display-mode: standalone)").matches;
+  return `<section class="panel install-gps-panel"><div class="panel-heading"><h2>${t("webAppGps")}</h2><span class="badge green">${t(installed ? "webAppMode" : "browserMode")}</span></div><div class="padded-form"><p class="form-intro">${t("webAppGpsIntro")}</p>${button(t("enableLocation"), "gps-permission", "", "primary small")}<p class="gps-status" data-install-gps-status role="status" aria-live="polite">${t("GPS_REQUIRED")}</p><details class="install-gps-help"><summary>${t("webAppNoPrompt")}</summary><p>${t("gpsAppleStandaloneHelp")}</p><a class="link-button" href="https://support.apple.com/en-us/102515" target="_blank" rel="noopener">${t("appleLocationHelp")}</a></details><p class="inline-note">${t("webAppInstallHint")}</p></div></section>`;
 }
 function adminInvitesPanel() {
   const links = state.adminInvites || [];
@@ -345,7 +349,22 @@ function customProductDialog() {
 const approvedPlaces = () => (state.group?.locations || []).filter(p => p.user_id === state.user?.id && p.status === "approved");
 const storeLabel = key => key === "korzinka" ? "Korzinka" : key === "secondary" ? "Havas / Mall" : t("localShop");
 const gps = { watch: null, fix: null, error: "GPS_REQUIRED", inside: new Set(), group: null, enabled: false };
+const permissionCheck = { fix: null, error: "GPS_REQUIRED", busy: false };
 let activeMap = null, locationRequest = null;
+function updatePermissionCheck() {
+  for (const el of document.querySelectorAll("[data-install-gps-status]")) el.textContent =
+    `${permissionCheck.fix && permissionCheck.error !== "GPS_DENIED" ? t("locationPermissionReceived", { n:num(Math.round(permissionCheck.fix.accuracy)) }) + " " : ""}${t(permissionCheck.error)}`;
+  for (const el of document.querySelectorAll('[data-action="gps-permission"]')) el.disabled = permissionCheck.busy;
+}
+async function checkGpsPermission() {
+  locationRequest?.abort(); const request = locationRequest = new AbortController();
+  permissionCheck.fix = null; permissionCheck.error = "gpsSearching"; permissionCheck.busy = true; updatePermissionCheck();
+  try {
+    permissionCheck.fix = await currentFix({ signal:request.signal, onProgress:fix => { permissionCheck.fix = fix; updatePermissionCheck(); } });
+    permissionCheck.error = "gpsPermissionReady";
+  } catch (error) { permissionCheck.error = request.signal.aborted ? "GPS_REQUIRED" : error.message; }
+  finally { if (locationRequest === request) locationRequest = null; permissionCheck.busy = false; updatePermissionCheck(); }
+}
 function stopGps() {
   gps.watch?.();
   gps.watch = null; gps.fix = null; gps.inside.clear(); gps.group = null; gps.enabled = false; gps.error = "GPS_REQUIRED";
@@ -392,11 +411,11 @@ function startGps() {
     const entered = inside.find(p => !gps.inside.has(p.id));
     gps.inside = new Set(inside.map(p => p.id));
     if (entered && !dialog.open && !state.busy && state.group.window.open && !state.group.group.archived && routeInfo().tab === "products" && state.group.assignment) priceDialog(entered.store_key);
-  }, code => {
-    if (code === "GPS_DENIED") stopGps();
+  }, (code, terminal) => {
+    if (terminal || code === "GPS_DENIED") stopGps();
     gps.error = code; updateGps();
   });
-  if (gps.error === "GPS_DENIED") stop(); else gps.watch = stop;
+  if (!gps.enabled) stop(); else gps.watch = stop;
   updateGps();
 }
 function gpsPermissionHelp() {
@@ -485,6 +504,7 @@ document.addEventListener("click", async event => {
   const action = el.dataset.action, id = Number(el.dataset.id), groupId = state.group?.group.id;
   try {
     switch (action) {
+      case "gps-permission": await checkGpsPermission(); break;
       case "gps-start": stopGps(); startGps(); break;
       case "store-location": locationDialog(el.dataset.store); break;
       case "store-prices": priceDialog(el.dataset.store); break;
