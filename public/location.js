@@ -1,3 +1,4 @@
+import { coordinates } from "./geo.js";
 let mapsConfig = { apiKey: "" };
 export function configureMaps(value) { mapsConfig = { apiKey: typeof value?.apiKey === "string" ? value.apiKey : "" }; }
 export { storeKeys, distanceMeters, locationError } from "./geo.js";
@@ -9,6 +10,7 @@ export function currentFix({ onProgress = () => {}, timeout = 20000 } = {}) {
     let watch = null, best = null, settled = false, settleTimer = null;
     const finish = (error) => {
       if (settled) return;
+      if (!error && best && (Date.now() - best.timestamp > 30000 || Date.now() - best.timestamp < -5000)) error = "GPS_STALE";
       settled = true; clearTimeout(deadline); clearTimeout(settleTimer);
       if (watch !== null) navigator.geolocation.clearWatch(watch);
       error ? reject(new Error(error)) : resolve(best);
@@ -17,8 +19,8 @@ export function currentFix({ onProgress = () => {}, timeout = 20000 } = {}) {
     watch = navigator.geolocation.watchPosition(position => {
       if (settled) return;
       const fix = toFix(position), age = Date.now() - fix.timestamp;
-      if (!Number.isFinite(fix.accuracy) || fix.accuracy <= 0 || age > 30000 || age < -5000) return;
-      if (!best || fix.accuracy < best.accuracy) { best = fix; onProgress(fix); }
+      if (!coordinates(fix) || !Number.isFinite(fix.timestamp) || !Number.isFinite(fix.accuracy) || fix.accuracy <= 0 || age > 30000 || age < -5000) return;
+      if (!best || Date.now() - best.timestamp > 30000 || fix.accuracy <= best.accuracy) { best = fix; onProgress(fix); }
       if (best.accuracy <= 20) finish(null);
       else if (best.accuracy <= 50 && !settleTimer) settleTimer = setTimeout(() => finish(null), Math.min(4000, timeout));
     }, error => { if (error.code === 1) finish("GPS_DENIED"); },
@@ -50,7 +52,7 @@ export function mountMap(container, initial, onPick, label, readOnly = false, la
   });
   let marker, circle;
   function select(point, notify=false) {
-    const latlng=L.latLng(point.latitude,point.longitude);
+    const latlng=L.latLng(point.latitude,point.longitude).wrap();
     if (!marker) {
       marker=L.marker(latlng,{draggable:!readOnly,icon:L.divIcon({className:"shop-map-marker",html:"<span>●</span>",iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map);
       marker.on("dragend",()=>{const p=marker.getLatLng();select({latitude:p.lat,longitude:p.lng},true);});

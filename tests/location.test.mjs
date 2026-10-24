@@ -22,3 +22,14 @@ test("GPS permission denial stops watching immediately",()=>withGPS((ok,bad)=>ba
 test("GPS never returns an inaccurate position at timeout",()=>withGPS(ok=>ok(position(200)),async count=>{
  await assert.rejects(currentFix({timeout:30}),/GPS_INACCURATE/);assert.equal(count(),1);
 }));
+
+for (const [name,patch] of [["invalid latitude",{coords:{latitude:91,longitude:69,accuracy:5}}],
+  ["invalid longitude",{coords:{latitude:41,longitude:181,accuracy:5}}],
+  ["missing timestamp",{timestamp:undefined}], ["old timestamp",{timestamp:Date.now()-60000}],
+  ["future timestamp",{timestamp:Date.now()+60000}]]) test(`GPS rejects ${name} before returning a fix`,()=>withGPS(ok=>ok({...position(5),...patch}),async count=>{
+  await assert.rejects(currentFix({timeout:20}),/GPS_REQUIRED/);assert.equal(count(),1);
+}));
+
+test("GPS rechecks freshness when waiting for a more accurate position",()=>withGPS(ok=>ok({...position(35),timestamp:Date.now()-29990}),async count=>{
+  await assert.rejects(currentFix({timeout:40}),/GPS_STALE/);assert.equal(count(),1);
+}));

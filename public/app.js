@@ -218,7 +218,7 @@ function historyView() {
     ${field(t("product"), `<select name="product"><option value="">${t("allProducts")}</option>${state.group.products.map(p => `<option value="${p.id}" ${Number(f.product) === p.id ? "selected" : ""}>${e(nameOf(p))} · ${t(p.category)}</option>`).join("")}</select>`)}
     ${field(t("from"), `<input type="date" name="from" value="${e(f.from || "")}">`)}${field(t("to"), `<input type="date" name="to" value="${e(f.to || "")}">`)}
     <button class="btn secondary" type="submit">${icon("search")}${t("filter")}</button></form>`;
-  const rows = data.records.length ? `<div class="table-wrap"><table><thead><tr>${admin ? `<th>${t("member")}</th>` : ""}<th>${t("product")}</th><th>${t("date")}</th><th>Korzinka</th><th>Havas / Mall</th><th>${t("localShop")}</th><th></th></tr></thead><tbody>${data.records.map(r => `<tr>${admin ? `<td><strong>${e(r.member_name)}</strong></td>` : ""}<td><div class="table-product">${productBadge(r)}<div><strong>${e(nameOf(r))}</strong><small>${t("perUnit", { unit: t(r.unit) })}</small></div></div></td><td class="nowrap">${date(r.observed_on)}<small>${t("revision", { count: r.version })}</small></td><td class="price-cell">${money(r.korzinka)}</td><td class="price-cell">${money(r.secondary)}<small>${e(r.secondary_store)}</small></td><td class="price-cell">${money(r.local)}<small>${e(r.local_store)}</small></td><td><button class="icon-btn" data-action="record" data-id="${r.id}" aria-label="${t("details")}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div><div class="pagination"><span>${t("pageInfo", data)}</span><div>${button(t("previous"), "page-prev", "", "secondary small", data.page <= 1 ? "disabled" : "")}${button(t("next"), "page-next", "", "secondary small", data.page >= data.pages ? "disabled" : "")}</div></div>` : empty(t("noHistory"), t("noHistoryText"), "history");
+  const rows = data.records.length ? `<div class="table-wrap"><table><thead><tr>${admin ? `<th>${t("member")}</th>` : ""}<th>${t("product")}</th><th>${t("date")}</th><th>Korzinka</th><th>Havas / Mall</th><th>${t("localShop")}</th><th></th></tr></thead><tbody>${data.records.map(r => `<tr>${admin ? `<td><strong>${e(r.member_name)}</strong></td>` : ""}<td><div class="table-product">${productBadge(r)}<div><strong>${e(nameOf(r))}</strong><small>${t("perUnit", { unit: t(r.unit) })}</small></div></div></td><td class="nowrap">${date(r.observed_on)}<small>${t("revision", { count: r.version })}</small></td><td class="price-cell">${r.collectedStores?.includes("korzinka") ? money(r.korzinka) : t("notCollected")}</td><td class="price-cell">${r.collectedStores?.includes("secondary") ? money(r.secondary) : t("notCollected")}<small>${e(r.secondary_store)}</small></td><td class="price-cell">${r.collectedStores?.includes("local") ? money(r.local) : t("notCollected")}<small>${e(r.local_store)}</small></td><td><button class="icon-btn" data-action="record" data-id="${r.id}" aria-label="${t("details")}">${icon("chevron")}</button></td></tr>`).join("")}</tbody></table></div><div class="pagination"><span>${t("pageInfo", data)}</span><div>${button(t("previous"), "page-prev", "", "secondary small", data.page <= 1 ? "disabled" : "")}${button(t("next"), "page-next", "", "secondary small", data.page >= data.pages ? "disabled" : "")}</div></div>` : empty(t("noHistory"), t("noHistoryText"), "history");
   let assignments = (state.assignments || []).filter(a => (!f.member || a.user_id === Number(f.member)) && (!f.product || a.product_id === Number(f.product)));
   return `<div class="panel"><div class="panel-heading"><h2>${t("history")}</h2><a class="btn secondary small" href="/api/groups/${state.group.group.id}/export?${new URLSearchParams(f)}" download>${icon("download")}${t("export")}</a></div>${filters}${rows}</div><details class="panel assignment-history"><summary>${icon("history")}${t("assignmentHistory")} <span class="count">${assignments.length}</span></summary><div class="table-wrap"><table><thead><tr><th>${t("member")}</th><th>${t("product")}</th><th>${t("assignmentPeriod")}</th><th>${t("changeReason")}</th></tr></thead><tbody>${assignments.map(a => `<tr><td>${e(a.member_name)}</td><td>${e(nameOf(a))}</td><td>${date(a.started_at, true)} → ${a.ended_at ? date(a.ended_at, true) : t("ongoing")}</td><td class="reason-cell">${reasonContent(a)}</td></tr>`).join("")}</tbody></table></div></details>`;
 }
@@ -291,15 +291,16 @@ async function load() {
     if (route.page === "group") {
       const data = await api(`/groups/${route.id}`);
       if (request !== state.request) return;
-      state.group = data;
-      if (data.group.isAdmin) state.members = (await api(`/groups/${route.id}/members`)).members;
+      const next = { group: data, members: [] };
+      if (data.group.isAdmin) next.members = (await api(`/groups/${route.id}/members`)).members;
       if (route.tab === "history") {
         const [history, assignments] = await Promise.all([api(`/groups/${route.id}/history?${new URLSearchParams(state.filters)}`), api(`/groups/${route.id}/assignments`)]);
-        state.history = history; state.assignments = assignments.assignments;
+        next.history = history; next.assignments = assignments.assignments;
       }
-      if (route.tab === "invites") state.invites = (await api(`/groups/${route.id}/invites`)).invites;
-      if (route.tab === "audit") state.events = (await api(`/groups/${route.id}/audit`)).events;
+      if (route.tab === "invites") next.invites = (await api(`/groups/${route.id}/invites`)).invites;
+      if (route.tab === "audit") next.events = (await api(`/groups/${route.id}/audit`)).events;
       if (request !== state.request) return;
+      Object.assign(state, next);
       renderGroup(); updateGps();
     } else ({ overview: renderOverview, groups: renderGroups, catalog: renderCatalog, settings: renderSettings }[route.page] || renderOverview)();
   } catch (error) {
@@ -590,10 +591,12 @@ document.addEventListener("submit", async event => {
       closeDialog(); toast(t("requestSent")); await load();
     } else if (kind === "prices") {
       const key = form.dataset.store;
+      const assignmentId = state.group.assignment.id;
       let fix; try { fix = await currentFix(); } catch (error) { throw new Error(t(error.message)); }
+      if (!form.isConnected || !dialog.open || state.group?.group.id !== groupId || state.group?.assignment?.id !== assignmentId) return;
       gps.fix = fix;
       await api(`/groups/${groupId}/submissions`, "POST", {
-        assignmentId: state.group.assignment.id, observedOn: values.observedOn,
+        assignmentId, observedOn: values.observedOn,
         storeKey: key, [key]: values.unavailable ? null : Number(values.price), location: fix
       });
       closeDialog(); toast(t("priceSaved")); await load();
@@ -644,10 +647,12 @@ setInterval(async () => {
   if (!state.user || document.hidden || dialog.open || state.busy || routeInfo().page !== "group") return;
   const route = routeInfo();
   try {
+    const request = state.request;
     const fresh = await api(`/groups/${route.id}`);
-    if (routeInfo().id === route.id && !dialog.open && !state.busy && (fresh.window.open !== state.group?.window.open || JSON.stringify([fresh.changeRequests,fresh.locations,fresh.assignment]) !== JSON.stringify([state.group?.changeRequests,state.group?.locations,state.group?.assignment]))) {
-      state.group = fresh; await load();
-    }
+    const members = fresh.group.isAdmin ? (await api(`/groups/${route.id}/members`)).members : [];
+    const snapshot = (data, list) => JSON.stringify([data?.window, data?.changeRequests, data?.locations, data?.assignment, data?.latest, data?.products, data?.group?.archived, list]);
+    if (request === state.request && routeInfo().id === route.id && routeInfo().tab === route.tab && !dialog.open && !state.busy &&
+      snapshot(fresh, members) !== snapshot(state.group, state.members || [])) await load();
   } catch { /* A foreground action will display connection errors. */ }
 }, 30000);
 try {

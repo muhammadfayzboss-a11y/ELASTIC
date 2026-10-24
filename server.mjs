@@ -10,7 +10,8 @@ const port = Number(process.env.PORT || 3000);
 const publicUrl = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`;
 const app = createApp({
   dbPath: process.env.DATABASE_PATH || resolve(root, "data/micro.sqlite"),
-  publicDir: resolve(root, "public"), publicUrl, mapApiKey: process.env.GEOAPIFY_API_KEY || ""
+  publicDir: resolve(root, "public"), publicUrl, mapApiKey: process.env.GEOAPIFY_API_KEY || "",
+  trustLoopbackProxy: process.env.TRUST_LOOPBACK_PROXY === "1"
 });
 app.server.listen(port, host, () => {
   console.log(`\nELASTIC: ${publicUrl}\n`);
