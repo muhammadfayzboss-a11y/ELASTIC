@@ -12,3 +12,13 @@
 - Eski hisoblar, biriktirishlar va narxlar o‘chirilmaydi. Baza v3 migratsiyasi qo‘shimcha jadvallar yaratadi.
 
 21 ta avtomatik test va xotiradagi test serverida brauzer sinovlari bajarildi. Haqiqiy telefon bilan do‘kon yonidagi GPS o‘lchovi alohida amaliy tekshiruvni talab qiladi.
+
+## Geoapify
+
+GEOAPIFY_API_KEY sozlangan bo‘lsa osm-bright-smooth xaritasi va manzil qidiruvi yoqiladi.
+Kalit faqat server muhitida/.env da saqlanadi, GitHub va ZIP ichiga qo‘shilmaydi.
+Brauzerdagi xarita va qidiruv API so‘rovlarida kalit ishlatiladi, shuning uchun
+Geoapify kalitini https://elasticprice.uz/ Referer’i bilan cheklash kerak.
+Qidirish faqat Qidirish/Enter bosilganda bajariladi; har harfga so‘rov yuborilmaydi.
+Qidiruv O‘zbekiston manzillari uchun. Natijadagi nuqtani xaritada tekshirish mumkin.
+Xarita yuklanishi muvaffaqiyatsiz bo‘lsa OpenStreetMap zaxira qatlami ochiladi.

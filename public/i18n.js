@@ -331,3 +331,9 @@ d("location_approved", "Savdo joyi tasdiqlandi", "Shop location approved", "То
 d("location_rejected", "Savdo joyi rad etildi", "Shop location rejected", "Торговая точка отклонена");
 
 d("gpsAccuracy", "GPS aniqlanmoqda · ±{n} m", "Locating · ±{n} m", "Уточняем GPS · ±{n} м");
+
+d("mapSearch","Qidirish","Search","Поиск");
+d("mapSearchHint","Manzil yoki do‘kon nomi, shahar…","Address or shop name, city…","Адрес или название магазина, город…");
+d("mapSearching","Manzil qidirilmoqda…","Searching…","Ищем адрес…");
+d("mapChooseResult","Natijani tanlang, so‘ng xaritada aniq nuqtani tekshiring.","Select a result, then verify the exact point on the map.","Выберите результат и проверьте точную точку на карте.");
+d("mapSearchError","Qidiruv vaqtincha ishlamadi. Xaritadan tanlashingiz mumkin.","Search is unavailable. You can select directly on the map.","Поиск недоступен. Выберите точку на карте.");

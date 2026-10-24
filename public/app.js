@@ -1,4 +1,4 @@
-import { storeKeys, distanceMeters, locationError, currentFix, toFix, mountMap } from "./location.js";
+import { storeKeys, distanceMeters, locationError, currentFix, toFix, mountMap, configureMaps } from "./location.js";
 import { languages, messages } from "./i18n.js";
 
 const app = document.querySelector("#app"), dialog = document.querySelector("#modal");
@@ -280,6 +280,7 @@ async function load() {
     const result = await api("/groups");
     if (request !== state.request) return;
     state.groups = result.groups;
+    if (!state.mapsLoaded) { configureMaps(await api("/maps/config")); state.mapsLoaded = true; }
     if (!state.catalog.length) state.catalog = (await api("/catalog")).products;
     if (request !== state.request) return;
     if (route.page === "group") {
@@ -379,7 +380,8 @@ function locationDialog(key) {
   const form = dialog.querySelector("form");
   activeMap?.destroy(); activeMap = mountMap(dialog.querySelector(".location-picker"), place, point => {
     form.elements.latitude.value = point.latitude.toFixed(6); form.elements.longitude.value = point.longitude.toFixed(6);
-  }, t("mapHint"));
+    if (!form.elements.name.value.trim() && point.name) form.elements.name.value = point.name.slice(0,100);
+  }, t("mapHint"), false, {search:t("mapSearch"),searchHint:t("mapSearchHint"),searching:t("mapSearching"),chooseResult:t("mapChooseResult"),noResults:t("noResults"),searchError:t("mapSearchError")});
   for (const input of [form.elements.latitude, form.elements.longitude]) input.addEventListener("change", () => {
     const latitude = Number(form.elements.latitude.value), longitude = Number(form.elements.longitude.value);
     if (Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) activeMap?.set({ latitude, longitude });
@@ -462,7 +464,7 @@ document.addEventListener("click", async event => {
       case "overview": go("overview"); break;
       case "retry": await load(); break;
       case "new-group": newGroupDialog(); break;
-      case "logout": stopGps(); await api("/logout", "POST", {}); state.user = null; state.csrf = null; state.authMode = null; go("overview"); break;
+      case "logout": stopGps(); configureMaps({}); state.mapsLoaded = false; await api("/logout", "POST", {}); state.user = null; state.csrf = null; state.authMode = null; go("overview"); break;
       case "auth-login": state.authMode = "login"; renderAuth(routeInfo(), state.invite); break;
       case "auth-register": state.authMode = null; renderAuth(routeInfo(), state.invite); break;
       case "back-login": state.authMode = null; go("overview"); break;

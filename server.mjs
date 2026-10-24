@@ -1,14 +1,16 @@
 import { resolve, dirname } from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./lib/app.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
+if (existsSync(resolve(root, ".env"))) process.loadEnvFile(resolve(root, ".env"));
 const host = process.env.HOST || (process.env.RENDER ? "0.0.0.0" : "127.0.0.1");
 const port = Number(process.env.PORT || 3000);
 const publicUrl = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`;
 const app = createApp({
   dbPath: process.env.DATABASE_PATH || resolve(root, "data/micro.sqlite"),
-  publicDir: resolve(root, "public"), publicUrl
+  publicDir: resolve(root, "public"), publicUrl, mapApiKey: process.env.GEOAPIFY_API_KEY || ""
 });
 app.server.listen(port, host, () => {
   console.log(`\nELASTIC: ${publicUrl}\n`);

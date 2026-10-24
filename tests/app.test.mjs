@@ -9,7 +9,7 @@ import { catalog } from "../lib/catalog.mjs";
 const PASSWORD = "OnlyForAutomatedTests!27";
 async function fixture(t, { locations = true } = {}) {
   let clock = "2026-10-20T07:00:00.000Z";
-  const app = createApp({ now: () => clock, setupToken: "automated-test-setup-token" });
+  const app = createApp({ now: () => clock, setupToken: "automated-test-setup-token", mapApiKey:"test-map-key-not-a-real-secret" });
   app.server.listen(0, "127.0.0.1"); await once(app.server, "listening");
   const origin = `http://127.0.0.1:${app.server.address().port}`;
   t.after(async () => { app.server.closeAllConnections(); await new Promise(resolve => app.server.close(resolve)); app.db.close(); });
@@ -409,4 +409,12 @@ test("GPS radius is exactly 100 metres, independently of the reported accuracy",
  const fix=metres=>({latitude:metres/6371008.8*180/Math.PI,longitude:0,accuracy:30,timestamp:Date.parse(now)});
  assert.equal(locationError(fix(99.99),p,now),null);
  assert.equal(locationError(fix(100.01),p,now),"GPS_OUTSIDE");
+});
+
+
+test("map configuration requires login and retains website security headers",async t=>{
+ const {origin,admin}=await fixture(t);
+ assert.equal((await fetch(`${origin}/api/maps/config`)).status,401);
+ const config=await admin.ok("/maps/config");assert.equal(config.provider,"geoapify");assert.equal(config.apiKey,"test-map-key-not-a-real-secret");
+ const page=await fetch(origin);assert.match(page.headers.get("content-security-policy"),/https:\/\/maps.geoapify.com/);
 });
