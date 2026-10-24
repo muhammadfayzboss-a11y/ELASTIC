@@ -197,6 +197,9 @@ d("newInvite", "Taklif havolasi yaratish", "Create invitation", "Создать 
 d("invitePrivacy", "Havolaga ega bo‘lgan odam guruhga qo‘shila oladi. Faqat kerakli o‘quvchilar bilan ulashing.", "Anyone with the link can join. Share it only with intended students.", "Любой обладатель ссылки может вступить. Делитесь только с нужными учениками.");
 d("expiresAt", "Amal qilish muddati", "Expires at", "Срок действия");
 d("maxUses", "Qo‘shilishlar chegarasi", "Join limit", "Лимит вступлений");
+d("inviteReusable", "Bu havola ko‘pchilik uchun: bir nechta o‘quvchi o‘z hisobini yaratib qo‘shila oladi. Qo‘shilishlar soni cheklanmagan. Havola belgilangan sanagacha yoki ustoz bekor qilguncha ishlaydi.", "This link is for the whole group: multiple students can create their own accounts and join. There is no join limit. It works until its expiry date or until the teacher revokes it.", "Эта ссылка для всей группы: несколько учеников могут создать свои аккаунты и вступить. Число вступлений не ограничено. Ссылка действует до срока окончания или отмены преподавателем.");
+d("unlimitInvite", "Limitni olib tashlash", "Remove join limit", "Убрать лимит вступлений");
+d("invite_limit_removed", "Havolaning qo‘shilish limiti olib tashlandi", "Invite join limit removed", "Лимит вступлений по ссылке снят");
 d("unlimited", "Cheklanmagan", "Unlimited", "Без ограничений");
 d("inviteCreated", "Havola tayyor", "Invitation ready", "Приглашение готово");
 d("copy", "Nusxalash", "Copy", "Копировать");

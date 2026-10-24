@@ -1,3 +1,4 @@
+import { productArt } from "./product-art.js";
 import { storeKeys, distanceMeters, locationError, currentFix, toFix, mountMap, configureMaps } from "./location.js";
 import { languages, messages } from "./i18n.js";
 
@@ -59,10 +60,6 @@ const paths = {
 };
 const icon = (name, cls = "") => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.box}</svg>`;
 const logo = () => `<span class="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M24 8H9v16h15M9 16h12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="brand-word">ELASTIC<span>${t("tagline")}</span></span>`;
-const emoji = p => {
-  const map = { "Olma": "🍎", "Nok": "🍐", "Banan": "🍌", "Apelsin": "🍊", "Mandarin": "🍊", "Limon": "🍋", "Uzum": "🍇", "Anor": "🔴", "Shaftoli": "🍑", "O‘rik": "🍑", "Gilos": "🍒", "Olcha": "🍒", "Qulupnay": "🍓", "Tarvuz": "🍉", "Qovun": "🍈", "Kivi": "🥝", "Kartoshka": "🥔", "Piyoz": "🧅", "Sabzi": "🥕", "Pomidor": "🍅", "Bodring": "🥒", "Karam": "🥬", "Sarimsoq": "🧄", "Bulg‘or qalampiri": "🫑", "Achchiq qalampir": "🌶️", "Baqlajon": "🍆", "Qovoq": "🎃", "Brokkoli": "🥦", "Makkajo‘xori": "🌽", "Guruch": "🍚" };
-  return map[p?.name_uz] || ({ fruit: "🍐", vegetable: "🥬", grain: "🌾", other: "📦" }[p?.category] || "📦");
-};
 const languageSelect = () => `<select class="language-select" data-language aria-label="${t("language")}">${Object.entries(languages).map(([k, v]) => `<option value="${k}" ${state.lang === k ? "selected" : ""}>${v}</option>`).join("")}</select>`;
 const themeButton = (withLabel = false) => `<button type="button" class="${withLabel ? "btn secondary small" : "icon-btn theme-toggle"}" data-action="theme" data-theme-label="${withLabel}" title="${t(state.theme === "dark" ? "switchLight" : "switchDark")}" aria-label="${t(state.theme === "dark" ? "switchLight" : "switchDark")}">${icon(state.theme === "dark" ? "sun" : "moon")}${withLabel ? `<span>${t(state.theme === "dark" ? "lightMode" : "darkMode")}</span>` : ""}</button>`;
 function setTheme(theme) {
@@ -80,7 +77,7 @@ const button = (label, action, iconName = "", cls = "primary", attrs = "") => `<
 const empty = (title, message, iconName = "box", extra = "") => `<div class="empty"><div class="empty-icon">${icon(iconName)}</div><h3>${title}</h3><p>${message}</p>${extra}</div>`;
 const field = (label, input, hint = "") => `<label class="field"><span>${label}</span>${input}${hint ? `<small>${hint}</small>` : ""}</label>`;
 const statusBadge = group => `<span class="badge ${group.archived ? "neutral" : group.window?.open ? "green" : "amber"}"><i></i>${group.archived ? t("archived") : group.window?.open ? t("open") : t("closed")}</span>`;
-const productBadge = p => `<span class="product-emoji ${e(p.category)}" aria-hidden="true">${emoji(p)}</span>`;
+const productBadge = p => `<span class="product-emoji ${e(p.category)}" aria-hidden="true">${productArt(p)}</span>`;
 const reasonContent = a => a.end_reason
   ? `<span class="reason-name">${t(`reason_${a.end_reason}`)}</span>${a.end_note ? `<p class="reason-note">${e(a.end_note)}</p>` : ""}`
   : `<span class="muted">${a.ended_at ? t("reasonNotRecorded") : "—"}</span>`;
@@ -234,7 +231,7 @@ function inviteView() {
   const invites = state.invites || [];
   return `<div class="panel"><div class="panel-heading"><h2>${t("invites")}</h2>${button(t("newInvite"), "new-invite", "plus", "primary", state.group.group.archived ? "disabled" : "")}</div><div class="invite-note">${icon("lock")}<p>${t("invitePrivacy")}</p></div>${invites.length ? `<div class="table-wrap"><table><thead><tr><th>${t("invites")}</th><th>${t("date")}</th><th>${t("expiresAt")}</th><th>${t("used")}</th><th></th></tr></thead><tbody>${invites.map(i => {
     const expired = i.expires_at && i.expires_at <= state.group.serverTime, full = i.max_uses !== null && i.uses >= i.max_uses;
-    return `<tr><td><div class="table-product"><span class="stat-icon tone-0">${icon("link")}</span><div><strong>#${i.id}</strong><span class="badge ${i.revoked_at || expired || full ? "neutral" : "green"}">${t(i.revoked_at ? "revoked" : expired ? "expired" : full ? "used" : "active")}</span></div></div></td><td>${date(i.created_at, true)}</td><td>${i.expires_at ? date(i.expires_at, true) : t("unlimited")}</td><td>${i.uses} / ${i.max_uses ?? "∞"}</td><td>${!i.revoked_at ? button(t("revoke"), "revoke-invite", "", "secondary small", `data-id="${i.id}"`) : ""}</td></tr>`;
+    return `<tr><td><div class="table-product"><span class="stat-icon tone-0">${icon("link")}</span><div><strong>#${i.id}</strong><span class="badge ${i.revoked_at || expired || full ? "neutral" : "green"}">${t(i.revoked_at ? "revoked" : expired ? "expired" : full ? "used" : "active")}</span></div></div></td><td>${date(i.created_at, true)}</td><td>${i.expires_at ? date(i.expires_at, true) : t("unlimited")}</td><td>${i.uses} / ${i.max_uses ?? "∞"}</td><td>${!i.revoked_at && !expired && i.max_uses !== null && !state.group.group.archived ? button(t("unlimitInvite"), "unlimit-invite", "", "secondary small", `data-id="${i.id}"`) : ""}${!i.revoked_at ? button(t("revoke"), "revoke-invite", "", "secondary small", `data-id="${i.id}"`) : ""}</td></tr>`;
   }).join("")}</tbody></table></div>` : empty(t("noInvites"), t("inviteHint"), "link")}</div>`;
 }
 function auditView() {
@@ -311,7 +308,7 @@ async function load() {
 }
 
 function catalogPicker(selected = state.catalog.map(p => p.key)) {
-  return `<div class="picker-heading"><strong>${t("selectProducts")}</strong><span id="selected-count">${t("selectedCount", { count: selected.length })}</span></div><div class="picker-tools">${button(t("selectAll"), "pick-all", "", "text small")}${button(t("select30"), "pick-30", "", "text small")}${button(t("clear"), "pick-none", "", "text small")}</div><div class="catalog-picker">${["fruit", "vegetable", "grain"].map(c => `<div><p class="tiny-label">${t(c)}</p>${state.catalog.filter(p => p.category === c).map(p => `<label class="checkbox"><input type="checkbox" name="productKeys" value="${p.key}" ${selected.includes(p.key) ? "checked" : ""}><span>${emoji(p)} ${e(nameOf(p))}</span></label>`).join("")}</div>`).join("")}</div>`;
+  return `<div class="picker-heading"><strong>${t("selectProducts")}</strong><span id="selected-count">${t("selectedCount", { count: selected.length })}</span></div><div class="picker-tools">${button(t("selectAll"), "pick-all", "", "text small")}${button(t("select30"), "pick-30", "", "text small")}${button(t("clear"), "pick-none", "", "text small")}</div><div class="catalog-picker">${["fruit", "vegetable", "grain"].map(c => `<div><p class="tiny-label">${t(c)}</p>${state.catalog.filter(p => p.category === c).map(p => `<label class="checkbox"><input type="checkbox" name="productKeys" value="${p.key}" ${selected.includes(p.key) ? "checked" : ""}><span class="picker-product"><span class="product-mini-art">${productArt(p)}</span>${e(nameOf(p))}</span></label>`).join("")}</div>`).join("")}</div>`;
 }
 function newGroupDialog() {
   showDialog(t("newGroup"), `<form data-form="new-group">${field(t("groupName"), `<input name="name" required minlength="2" maxlength="80" placeholder="${t("groupNameExample")}">`)}${field(`${t("description")} · ${t("optional")}`, `<textarea name="description" rows="2" maxlength="250"></textarea>`)}${catalogPicker()}${formFooter(t("create"))}</form>`, true);
@@ -429,7 +426,7 @@ function recordDialog(id) {
   showDialog(`${e(nameOf(r))} · ${e(r.member_name)}`, `<p class="form-intro">${t("assignmentPeriod")}: ${date(r.started_at, true)} → ${r.ended_at ? date(r.ended_at, true) : t("ongoing")}</p>${r.ended_at ? `<div class="reason-box"><strong>${t("changeReason")}</strong><div>${reasonContent(r)}</div></div>` : ""}<div class="revision-list">${r.revisions.map(v => `<article class="revision-card"><div class="row"><span class="badge green">${t("revision", { count: v.version })}</span><span class="muted">${date(v.created_at, true)}</span></div><p>${t("observedDate")}: ${date(v.observed_on)}</p><div class="revision-prices"><div><span>Korzinka</span><strong>${v.collectedStores?.includes("korzinka") ? money(v.korzinka) : t("notCollected")}</strong></div><div><span>${e(v.secondary_store)}</span><strong>${v.collectedStores?.includes("secondary") ? money(v.secondary) : t("notCollected")}</strong></div><div><span>${e(v.local_store)}</span><strong>${v.collectedStores?.includes("local") ? money(v.local) : t("notCollected")}</strong></div></div><small class="muted">${t("currency")} / 1 ${t(r.unit)}</small>${v.observations?.map(o => `<p class="gps-status">${e(o.location_name)} · ${Math.round(o.distance)} m · ±${Math.round(o.accuracy)} m · ${date(o.measured_at, true)}</p>`).join("") || ""}</article>`).join("")}</div>`, true);
 }
 function newInviteDialog() {
-  showDialog(t("newInvite"), `<form data-form="new-invite"><p class="form-intro">${t("invitePrivacy")}</p>${field(`${t("expiresAt")} · ${t("optional")}`, `<input type="datetime-local" name="expiresAt">`)}${field(`${t("maxUses")} · ${t("optional")}`, `<input type="number" name="maxUses" min="1" max="10000" placeholder="${t("unlimited")}">`)}${formFooter(t("create"))}</form>`);
+  showDialog(t("newInvite"), `<form data-form="new-invite"><p class="form-intro">${t("invitePrivacy")}</p>${field(`${t("expiresAt")} · ${t("optional")}`, `<input type="datetime-local" name="expiresAt">`)}<p class="inline-note">${t("inviteReusable")}</p>${formFooter(t("create"))}</form>`);
 }
 function updateProductList() {
   const target = document.querySelector("#product-list");
@@ -517,6 +514,9 @@ document.addEventListener("click", async event => {
         try { await navigator.clipboard.writeText(input.value); toast(t("copied")); }
         catch { input.focus(); input.select(); toast(t("copyManually")); } break;
       }
+      case "unlimit-invite":
+        await api(`/groups/${groupId}/invites/${id}/unlimit`, "POST", {});
+        toast(t("saved")); await load(); break;
       case "revoke-invite":
         confirmDialog(t("revoke"), t("revokeConfirm"), async () => {
           await api(`/groups/${groupId}/invites/${id}`, "DELETE", {}); closeDialog(); toast(t("saved")); await load();
@@ -616,8 +616,8 @@ document.addEventListener("submit", async event => {
       }
       await api(`/groups/${groupId}/schedule`, "POST", payload); toast(t("saved")); await load();
     } else if (kind === "new-invite") {
-      const result = await api(`/groups/${groupId}/invites`, "POST", { expiresAt: fromLocal(values.expiresAt), maxUses: values.maxUses ? Number(values.maxUses) : null });
-      showDialog(t("inviteCreated"), `<div class="success-icon">${icon("check")}</div><p class="form-intro">${t("linkOnce")}</p><label class="field"><span>${t("invites")}</span><input id="invite-link" value="${e(`${location.origin}/#join=${result.token}`)}" readonly></label><div class="dialog-actions">${button(t("copy"), "copy-link", "copy")}${button(t("close"), "close-dialog", "", "secondary")}</div>`);
+      const result = await api(`/groups/${groupId}/invites`, "POST", { expiresAt: fromLocal(values.expiresAt), maxUses: null });
+      showDialog(t("inviteCreated"), `<div class="success-icon">${icon("check")}</div><p class="form-intro">${t("inviteReusable")}</p><p class="inline-note">${t("linkOnce")}</p><label class="field"><span>${t("invites")}</span><input id="invite-link" value="${e(`${location.origin}/#join=${result.token}`)}" readonly></label><div class="dialog-actions">${button(t("copy"), "copy-link", "copy")}${button(t("close"), "close-dialog", "", "secondary")}</div>`);
       await load();
     } else if (kind === "history") {
       state.filters = Object.fromEntries(Object.entries(values).filter(([, value]) => value));

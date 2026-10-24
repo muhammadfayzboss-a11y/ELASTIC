@@ -63,3 +63,12 @@ bilan yuklama sinovi emas. Jismoniy telefon bilan do‘kon oldida GPS dala sinov
 o‘tkazilmadi. Qurilmaning joylashuv aniqligi va joylashuvni soxtalashtirish imkoniyati
 brauzer hamda qurilmaga bog‘liq. Testlar barcha mumkin bo‘lgan xatolar yo‘qligiga
 kafolat bermaydi; topilgan takrorlanadigan muammolar tuzatildi.
+
+## Mahsulot rasmlari va ko‘pchilik uchun havolalar
+
+Keyingi yangilanishda 50 ta mahsulot uchun mos, qurilmadan mustaqil SVG belgilar qo‘shildi.
+Yangi guruh havolasida qo‘shilish limiti yo‘q; muddati ixtiyoriy, ustoz uni bekor qila oladi.
+Eski cheklangan havolada «Limitni olib tashlash» amali bor.
+Bir havola orqali uchta mustaqil hisob ochilishi, tugagan limitni olib tashlash va
+begona/o‘quvchi tomonidan o‘zgartirish taqiqlanishi tekshirildi.
+Ushbu yangilanish bilan **190 ta testning barchasi o‘tdi**.

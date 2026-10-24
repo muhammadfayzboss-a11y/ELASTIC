@@ -9,7 +9,7 @@
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
-    "check": "node --check server.mjs && node --check lib/app.mjs && node --check lib/db.mjs && node --check public/app.js && node --check public/theme.js && node --check public/i18n.js && node --check public/geo.js && node --check public/location.js && node --check lib/location.mjs",
+    "check": "node --check server.mjs && node --check lib/app.mjs && node --check lib/db.mjs && node --check public/app.js && node --check public/product-art.js && node --check public/theme.js && node --check public/i18n.js && node --check public/geo.js && node --check public/location.js && node --check lib/location.mjs",
     "backup": "node scripts/backup.mjs"
   }
 }
