@@ -120,6 +120,7 @@ function go(route) {
 }
 function routeInfo() {
   const raw = location.hash.slice(1);
+  if (raw.startsWith("admin-join=")) return { page: "admin-join", token: raw.slice(11) };
   if (raw.startsWith("join=")) return { page: "join", token: raw.slice(5) };
   if (raw.startsWith("setup=")) return { page: "setup", token: raw.slice(6) };
   const [page, id, tab] = raw.split("/");
@@ -245,10 +246,18 @@ function renderGroup() {
   const tabs = group.isAdmin ? [["products", "box"], ["members", "users"], ["history", "history"], ["schedule", "clock"], ["invites", "link"], ["audit", "grid"]] : [["products", "box"], ["history", "history"]];
   const tab = tabs.some(([key]) => key === route.tab) ? route.tab : "products";
   const content = ({ products: groupProducts, members: membersView, history: historyView, schedule: scheduleView, invites: inviteView, audit: auditView })[tab]();
-  shell(`<a href="#groups" class="back-link">← ${t("groups")}</a><div class="page-heading group-heading"><div><div class="eyebrow">${t("groups")} / #${group.id}</div><h1>${e(group.name)}</h1><p>${e(group.description || t("groupsHint"))}</p></div>${group.isAdmin ? button(t(group.archived ? "groupRestore" : "groupArchive"), "archive-group", group.archived ? "history" : "lock", "secondary small") : ""}</div>${windowBanner(state.group)}<nav class="group-tabs">${tabs.map(([key, ico]) => `<a href="#group/${group.id}/${key}" class="${tab === key ? "active" : ""}">${icon(ico)}${t(key)}</a>`).join("")}</nav>${content}`, group.name);
+  shell(`<a href="#groups" class="back-link">← ${t("groups")}</a><div class="page-heading group-heading"><div><div class="eyebrow">${t("groups")} / #${group.id}</div><h1>${e(group.name)}</h1><p>${e(group.description || t("groupsHint"))}</p></div>${group.isAdmin ? `<div class="heading-actions">${button(t(group.archived ? "groupRestore" : "groupArchive"), "archive-group", group.archived ? "history" : "lock", "secondary small")}${button(t("deleteGroup"), "delete-group", "trash", "secondary small danger-text")}</div>` : ""}</div>${windowBanner(state.group)}<nav class="group-tabs">${tabs.map(([key, ico]) => `<a href="#group/${group.id}/${key}" class="${tab === key ? "active" : ""}">${icon(ico)}${t(key)}</a>`).join("")}</nav>${content}`, group.name);
 }
 function renderSettings() {
-  shell(`<div class="page-heading"><div><p class="eyebrow">ELASTIC / ${t("settings")}</p><h1>${t("settings")}</h1><p>${t("account")} · @${e(state.user.username)}</p></div></div><div class="two-column"><div class="panel"><div class="panel-heading"><h2>${t("changePassword")}</h2>${icon("lock")}</div><form class="padded-form" data-form="password">${field(t("currentPassword"), `<input type="password" name="current" required maxlength="128" autocomplete="current-password">`)}${field(t("newPassword"), `<input type="password" name="password" required minlength="10" maxlength="128" autocomplete="new-password">`, t("passwordHint"))}<div class="form-error" role="alert"></div><button class="btn primary" type="submit">${t("save")}</button></form></div><div class="panel padded-form"><h2>${t("account")}</h2><div class="setting-row"><span>${t("fullName")}</span><strong>${e(state.user.name)}</strong></div><div class="setting-row"><span>${t("username")}</span><strong>@${e(state.user.username)}</strong></div><div class="setting-row"><span>${t("language")}</span>${languageSelect()}</div><div class="setting-row"><span>${t("appearance")}</span>${themeButton(true)}</div><div class="setting-row"><span>${t("timezone")}</span><strong>${t("tzValue")}</strong></div></div></div>`, t("settings"));
+  shell(`<div class="page-heading"><div><p class="eyebrow">ELASTIC / ${t("settings")}</p><h1>${t("settings")}</h1><p>${t("account")} · @${e(state.user.username)}</p></div></div><div class="two-column"><div class="panel"><div class="panel-heading"><h2>${t("changePassword")}</h2>${icon("lock")}</div><form class="padded-form" data-form="password">${field(t("currentPassword"), `<input type="password" name="current" required maxlength="128" autocomplete="current-password">`)}${field(t("newPassword"), `<input type="password" name="password" required minlength="10" maxlength="128" autocomplete="new-password">`, t("passwordHint"))}<div class="form-error" role="alert"></div><button class="btn primary" type="submit">${t("save")}</button></form></div><div class="panel padded-form"><h2>${t("account")}</h2><div class="setting-row"><span>${t("fullName")}</span><strong>${e(state.user.name)}</strong></div><div class="setting-row"><span>${t("username")}</span><strong>@${e(state.user.username)}</strong></div><div class="setting-row"><span>${t("language")}</span>${languageSelect()}</div><div class="setting-row"><span>${t("appearance")}</span>${themeButton(true)}</div><div class="setting-row"><span>${t("timezone")}</span><strong>${t("tzValue")}</strong></div></div></div>${state.user.role === "admin" ? adminInvitesPanel() : ""}`, t("settings"));
+}
+function adminInvitesPanel() {
+  const links = state.adminInvites || [];
+  return `<section class="panel admin-invites-panel"><div class="panel-heading"><h2>${t("adminInvites")}</h2>${button(t("newAdminInvite"), "new-admin-invite", "plus", "primary small")}</div><p class="gps-help">${t("adminInviteHint")}</p>${links.length ? `<div class="table-wrap"><table><thead><tr><th>${t("date")}</th><th>${t("used")}</th><th></th></tr></thead><tbody>${links.map(link => `<tr><td>${date(link.created_at,true)}</td><td>${link.uses} / ∞ <span class="badge ${link.revoked_at ? "neutral" : "green"}">${t(link.revoked_at ? "revoked" : "active")}</span></td><td>${!link.revoked_at ? button(t("revoke"), "revoke-admin-invite", "", "secondary small", `data-id="${link.id}"`) : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}</section>`;
+}
+function renderAdminAuth(route) {
+  if (state.user) return authLayout(`<div class="auth-heading"><h1>${t("newAdminAccount")}</h1><p>${t("SIGN_OUT_FIRST")}</p></div>${button(t("adminSignOut"), "admin-sign-out", "logout")}${button(t("overview"), "overview", "", "text")}`);
+  authLayout(`<div class="auth-heading"><span class="auth-icon">${icon("users")}</span><h1>${t("newAdminAccount")}</h1><p>${t("adminSignupHint")}</p></div><form data-form="register-admin" class="auth-form">${field(t("fullName"), `<input name="name" required minlength="2" maxlength="80" autocomplete="name">`)}${field(t("username"), `<input name="username" required minlength="3" maxlength="32" autocomplete="username" autocapitalize="none" spellcheck="false">`,t("usernameHint"))}${field(t("password"), `<input name="password" type="password" required minlength="10" maxlength="128" autocomplete="new-password">`,t("passwordHint"))}<div class="form-error" role="alert"></div><button class="btn primary auth-submit" type="submit">${t("createAccount")}</button></form>`);
 }
 function authLayout(content) {
   document.documentElement.lang = state.lang;
@@ -273,6 +282,11 @@ async function load() {
   const request = ++state.request, route = routeInfo();
   document.body.classList.remove("menu-open");
   try {
+    if (route.page === "admin-join") {
+      await api("/admin-invites/inspect", "POST", {token:route.token});
+      if (request !== state.request) return;
+      return renderAdminAuth(route);
+    }
     if (route.page === "join") {
       state.invite = await api("/invites/inspect", "POST", { token: route.token });
       if (request !== state.request) return;
@@ -299,10 +313,17 @@ async function load() {
       if (request !== state.request) return;
       Object.assign(state, next);
       renderGroup(); updateGps();
-    } else ({ overview: renderOverview, groups: renderGroups, catalog: renderCatalog, settings: renderSettings }[route.page] || renderOverview)();
+    } else {
+      if (route.page === "settings" && state.user.role === "admin") {
+        const data = await api("/admin-invites");
+        if (request !== state.request) return;
+        state.adminInvites = data.invites;
+      }
+      ({ overview: renderOverview, groups: renderGroups, catalog: renderCatalog, settings: renderSettings }[route.page] || renderOverview)();
+    }
   } catch (error) {
     if (request !== state.request) return;
-    if (!state.user || ["join", "setup"].includes(route.page)) renderAuth(route, null, error.message);
+    if (!state.user || ["join", "setup", "admin-join"].includes(route.page)) renderAuth(route, null, error.message);
     else shell(`<div class="panel">${empty(t("errorTitle"), e(error.message), "info", button(t("retry"), "retry", "history"))}</div>`, t("errorTitle"));
   }
 }
@@ -509,6 +530,17 @@ document.addEventListener("click", async event => {
         confirmDialog(t("archiveProduct"), t("archiveProductConfirm"), async () => {
           await api(`/groups/${groupId}/products/${id}`, "DELETE", {}); closeDialog(); toast(t("saved")); await load();
         }); break;
+      case "delete-group":
+        showDialog(t("deleteGroup"), `<form data-form="delete-group"><p class="form-intro">${t("deleteGroupHint", {name:e(state.group.group.name)})}</p>${field(t("confirmGroupName"), `<input name="confirmName" required autocomplete="off" placeholder="${e(state.group.group.name)}">`)}${formFooter(t("deleteGroup"))}</form>`); break;
+      case "admin-sign-out":
+        stopGps(); await api("/logout", "POST", {}); state.user=null;state.csrf=null;state.mapsLoaded=false;configureMaps({});await load();break;
+      case "new-admin-invite": {
+        const result=await api("/admin-invites", "POST", {});
+        showDialog(t("newAdminInvite"), `<p class="form-intro">${t("adminInviteHint")}</p><p class="inline-note">${t("linkOnce")}</p>${field(t("adminInvites"), `<input id="invite-link" readonly value="${e(`${location.origin}/#admin-join=${result.token}`)}">`)}<div class="dialog-actions">${button(t("copy"), "copy-link", "copy")}${button(t("close"), "close-dialog", "", "secondary")}</div>`);
+        await load();break;
+      }
+      case "revoke-admin-invite":
+        confirmDialog(t("revoke"),t("revokeConfirm"),async()=>{await api(`/admin-invites/${id}`,"DELETE",{});closeDialog();await load();});break;
       case "archive-group":
         confirmDialog(t(state.group.group.archived ? "groupRestore" : "groupArchive"), t("archiveConfirm"), async () => {
           await api(`/groups/${groupId}/archive`, "POST", { archived: !state.group.group.archived }); closeDialog(); toast(t("saved")); await load();
@@ -583,12 +615,15 @@ document.addEventListener("submit", async event => {
   state.busy = true; if (submit) submit.disabled = true;
   try {
     const groupId = state.group?.group.id;
-    if (["login", "register", "setup"].includes(kind)) {
+    if (["login", "register", "setup", "register-admin"].includes(kind)) {
       const result = await api(`/${kind}`, "POST", { ...values, token: routeInfo().token });
       state.user = result.user; state.csrf = result.csrf; state.setupRequired = false; state.authMode = null;
       if (result.groupId) go(`group/${result.groupId}/products`);
       else if (kind === "login" && routeInfo().page === "join") await load();
       else go("overview");
+    } else if (kind === "delete-group") {
+      await api(`/groups/${groupId}`, "DELETE", {confirmName:values.confirmName});
+      closeDialog();toast(t("groupDeleted"));go("groups");
     } else if (kind === "new-group") {
       const result = await api("/groups", "POST", { ...values, productKeys: data.getAll("productKeys") });
       toast(t("groupCreated")); go(`group/${result.id}/products`);
