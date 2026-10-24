@@ -2,6 +2,24 @@ import { coordinates } from "./geo.js";
 let mapsConfig = { apiKey: "" };
 export function configureMaps(value) { mapsConfig = { apiKey: typeof value?.apiKey === "string" ? value.apiKey : "" }; }
 export { storeKeys, distanceMeters, locationError } from "./geo.js";
+export const isAppleStandalone = () => navigator.standalone === true;
+// A denied watcher is terminal. Clear it so a later user click starts a new request.
+export function watchFix(onFix, onError) {
+  if (!window.isSecureContext) { onError("GPS_HTTPS"); return () => {}; }
+  if (!navigator.geolocation) { onError("GPS_REQUIRED"); return () => {}; }
+  let id = null, closed = false;
+  const stop = () => { closed = true; if (id !== null) { navigator.geolocation.clearWatch(id); id = null; } };
+  const watchId = navigator.geolocation.watchPosition(position => {
+    if (!closed) onFix(toFix(position));
+  }, error => {
+    if (closed) return;
+    if (error.code === 1) stop();
+    onError(error.code === 1 ? "GPS_DENIED" : "GPS_REQUIRED");
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  id = watchId;
+  if (closed) stop();
+  return stop;
+}
 // Wait for a precise fresh fix instead of accepting the first coarse network position.
 export function currentFix({ onProgress = () => {}, timeout = 20000 } = {}) {
   return new Promise((resolve, reject) => {

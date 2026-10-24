@@ -22,3 +22,16 @@ Geoapify kalitini https://elasticprice.uz/ Referer’i bilan cheklash kerak.
 Qidirish faqat Qidirish/Enter bosilganda bajariladi; har harfga so‘rov yuborilmaydi.
 Qidiruv O‘zbekiston manzillari uchun. Natijadagi nuqtani xaritada tekshirish mumkin.
 Xarita yuklanishi muvaffaqiyatsiz bo‘lsa OpenStreetMap zaxira qatlami ochiladi.
+
+
+## Bosh ekran ilovasida ruxsat rad etilishi
+
+Bosh ekran ilovasining lokatsiya ruxsati Safari ruxsatidan farq qilishi mumkin.
+Ruxsat rad etilganda kuzatuv tozalanadi; «GPS’ni qayta tekshirish» yangi so‘rov boshlaydi.
+Narx shakli yopilmasdan yordamni ochish va qayta tekshirish mumkin.
+Apple standalone holatida iPhone uchun alohida ko‘rsatma chiqadi.
+Agar ruxsat oynasi umuman chiqmasa va Safari’da ishlasa, saytni Safari’da ishlatish
+mumkin. Bosh ekranga qo‘shishda «Open as Web App»ni o‘chirish Safari yorlig‘ini yaratadi.
+Bu telefon ruxsatini chetlab o‘tmaydi: 100 m radius, GPS aniqligi va server tekshiruvlari saqlanadi.
+Bu o‘zgarish iOS 26.6 tizim ruxsati xatosini dastur orqali tuzatildi degani emas.
+Telefonning bloklangan ruxsatini sayt avtomatik yoqa olmaydi.
